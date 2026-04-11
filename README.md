@@ -52,38 +52,18 @@ npm install
 
 ### 2. Configure environment
 
-Create a `.env` file with:
+Create a `.env` file with your own Supabase project values:
 
 ```bash
 VITE_SUPABASE_URL=your_supabase_project_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-### 3. Run the app
+These are **not included** in the repo. Anyone cloning this project should create their own Supabase project and supply their own values.
 
-```bash
-npm run dev
-```
+### 3. Set up Supabase
 
-### 4. Production build
-
-```bash
-npm run build
-```
-
-### 5. Typecheck
-
-```bash
-npm run typecheck
-```
-
-### 6. Lint
-
-```bash
-npm run lint
-```
-
-## Supabase
+This app is still built on **Supabase**. What is removed from the repo is any private project configuration or secret value — not the Supabase integration itself.
 
 Database schema and migrations live in:
 
@@ -91,7 +71,80 @@ Database schema and migrations live in:
 supabase/migrations/
 ```
 
-If you are setting this project up fresh, apply the migrations before testing multiplayer, sharing, or canvas features.
+Typical setup flow:
+
+```bash
+# install Supabase CLI if needed
+npm install -g supabase
+
+# login and link to your project
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+
+# apply the schema to your hosted project
+supabase db push
+```
+
+For local development with local Supabase:
+
+```bash
+supabase start
+supabase db reset
+```
+
+### 4. Configure server-side AI secret
+
+The AI chat function uses a **server-side** secret, not a browser-exposed Vite env var.
+
+Set this in Supabase secrets:
+
+```bash
+supabase secrets set ANTHROPIC_API_KEY=your_key_here
+```
+
+Then deploy the function if needed:
+
+```bash
+supabase functions deploy ai-chat
+```
+
+### 5. Run the app
+
+```bash
+npm run dev
+```
+
+### 6. Production build
+
+```bash
+npm run build
+```
+
+### 7. Typecheck
+
+```bash
+npm run typecheck
+```
+
+### 8. Lint
+
+```bash
+npm run lint
+```
+
+## Supabase
+
+This repository assumes a Supabase backend, but **you bring your own project**.
+
+At minimum, a fresh setup should:
+
+- create a Supabase project
+- set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+- apply the migrations in `supabase/migrations/`
+- set the `ANTHROPIC_API_KEY` secret for the `ai-chat` function
+- deploy the `ai-chat` function if using hosted inference
+
+If you are setting this project up fresh, apply the migrations before testing auth, sharing, multiplayer canvas, or chat.
 
 ## Project structure
 
