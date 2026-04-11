@@ -1,0 +1,226 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import type { RealtimeChannel } from '@supabase/supabase-js';
+import type { FloatingWindow, ItemPresenceUser } from '../types';
+
+interface PresenceSnapshotItem {
+  type: 'chat' | 'document';
+  itemId: string;
+  typing?: boolean;
+}
+
+interface PresenceSnapshotPayload {
+  userId: string;
+  name: string;
+  color: string;
+  items: PresenceSnapshotItem[];
+  lastSeen: number;
+}
+
+interface RemotePresenceState {
+  userId: string;
+  name: string;
+  color: string;
+  items: PresenceSnapshotItem[];
+  lastSeen: number;
+}
+
+const COLORS = [
+  '#ef4444', '#f97316', '#eab308', '#22c55e',
+  '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899',
+  '#14b8a6', '#84cc16', '#f59e0b', '#6366f1',
+];
+
+function pickColor(userId: string): string {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) {
+    hash = ((hash << 5) - hash + userId.charCodeAt(i)) | 0;
+  }
+  return COLORS[Math.abs(hash) % COLORS.length];
+}
+
+export function useItemPresence(
+  workspaceId: string | null,
+  windows: FloatingWindow[],
+  userId?: string,
+  userEmail?: string,
+) {
+  const [remotePresence, setRemotePresence] = useState<Record<string, RemotePresenceState>>({});
+  const channelRef = useRef<RealtimeChannel | null>(null);
+  const typingRef = useRef<Record<string, boolean>>({});
+  const windowsRef = useRef<FloatingWindow[]>(windows);
+  const heartbeatRef = useRef<number | null>(null);
+  const displayName = userEmail?.split('@')[0] || 'Anonymous';
+  const color = userId ? pickColor(userId) : '#3b82f6';
+
+  useEffect(() => {
+    windowsRef.current = windows;
+  }, [windows]);
+
+  const buildItems = useCallback((): PresenceSnapshotItem[] => {
+    const seen = new Set<string>();
+    const items: PresenceSnapshotItem[] = [];
+
+    windowsRef.current
+      .filter(win => !win.minimized)
+      .forEach(win => {
+        if (win.type === 'chat' && win.sessionId) {
+          const key = `chat:${win.sessionId}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          items.push({
+            type: 'chat',
+            itemId: win.sessionId,
+            typing: !!typingRef.current[key],
+          });
+        }
+
+        if (win.type === 'document' && win.documentId) {
+          const key = `document:${win.documentId}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          items.push({
+            type: 'document',
+            itemId: win.documentId,
+            typing: !!typingRef.current[key],
+          });
+        }
+      });
+
+    return items;
+  }, []);
+
+  const sendSnapshot = useCallback(() => {
+    if (!channelRef.current || !userId) return;
+
+    const payload: PresenceSnapshotPayload = {
+      userId,
+      name: displayName,
+      color,
+      items: buildItems(),
+      lastSeen: Date.now(),
+    };
+
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'presence_snapshot',
+      payload,
+    });
+  }, [buildItems, color, displayName, userId]);
+
+  const pruneStaleUsers = useCallback(() => {
+    const cutoff = Date.now() - 7000;
+    setRemotePresence(prev => {
+      const next = { ...prev };
+      for (const [id, state] of Object.entries(next)) {
+        if (state.lastSeen < cutoff) delete next[id];
+      }
+      return next;
+    });
+  }, []);
+
+  const setTyping = useCallback((type: 'chat' | 'document', itemId: string, typing: boolean) => {
+    const key = `${type}:${itemId}`;
+    if (typing) typingRef.current[key] = true;
+    else delete typingRef.current[key];
+    sendSnapshot();
+  }, [sendSnapshot]);
+
+  useEffect(() => {
+    if (!workspaceId || !userId) {
+      setRemotePresence({});
+      return;
+    }
+
+    const channel = supabase.channel(`item-presence:${workspaceId}`);
+    channelRef.current = channel;
+
+    channel
+      .on('broadcast', { event: 'presence_snapshot' }, ({ payload }) => {
+        const snapshot = payload as PresenceSnapshotPayload;
+        if (!snapshot.userId || snapshot.userId === userId) return;
+        setRemotePresence(prev => ({
+          ...prev,
+          [snapshot.userId]: {
+            userId: snapshot.userId,
+            name: snapshot.name,
+            color: snapshot.color,
+            items: snapshot.items || [],
+            lastSeen: snapshot.lastSeen || Date.now(),
+          },
+        }));
+      })
+      .on('broadcast', { event: 'presence_leave' }, ({ payload }) => {
+        const leavingId = (payload as { userId?: string }).userId;
+        if (!leavingId) return;
+        setRemotePresence(prev => {
+          const next = { ...prev };
+          delete next[leavingId];
+          return next;
+        });
+      })
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') {
+          sendSnapshot();
+        }
+      });
+
+    const handleBeforeUnload = () => {
+      channel.send({
+        type: 'broadcast',
+        event: 'presence_leave',
+        payload: { userId },
+      });
+    };
+
+    heartbeatRef.current = window.setInterval(() => {
+      sendSnapshot();
+      pruneStaleUsers();
+    }, 2000);
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+      if (heartbeatRef.current) window.clearInterval(heartbeatRef.current);
+      heartbeatRef.current = null;
+      channel.unsubscribe();
+      channelRef.current = null;
+    };
+  }, [workspaceId, userId, sendSnapshot, pruneStaleUsers]);
+
+  useEffect(() => {
+    if (!workspaceId || !userId) return;
+    sendSnapshot();
+  }, [workspaceId, userId, windows, sendSnapshot]);
+
+  const { documentPresence, chatPresence } = useMemo(() => {
+    const documents: Record<string, ItemPresenceUser[]> = {};
+    const chats: Record<string, ItemPresenceUser[]> = {};
+
+    Object.values(remotePresence).forEach(user => {
+      user.items.forEach(item => {
+        const target = item.type === 'document' ? documents : chats;
+        if (!target[item.itemId]) target[item.itemId] = [];
+        target[item.itemId].push({
+          userId: user.userId,
+          name: user.name,
+          color: user.color,
+          typing: !!item.typing,
+        });
+      });
+    });
+
+    return {
+      documentPresence: documents,
+      chatPresence: chats,
+    };
+  }, [remotePresence]);
+
+  return {
+    documentPresence,
+    chatPresence,
+    setTyping,
+  };
+}
