@@ -64,9 +64,9 @@ Deno.serve(async (req: Request) => {
     });
 
     if (!response.ok) {
-      const errText = await response.text();
+      const errorBody = await response.text();
       return new Response(
-        JSON.stringify({ error: `Anthropic API error: ${response.status}` }),
+        JSON.stringify({ error: `Anthropic API error: ${response.status}`, details: errorBody }),
         { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -88,7 +88,9 @@ Deno.serve(async (req: Request) => {
                 const out = JSON.stringify({ delta: { text: parsed.delta.text } });
                 controller.enqueue(new TextEncoder().encode(`data: ${out}\n\n`));
               }
-            } catch {}
+            } catch {
+              // Ignore malformed SSE chunks and continue streaming valid deltas.
+            }
           }
         }
       },
@@ -102,7 +104,7 @@ Deno.serve(async (req: Request) => {
         "Connection": "keep-alive",
       },
     });
-  } catch (err) {
+  } catch {
     return new Response(
       JSON.stringify({ error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

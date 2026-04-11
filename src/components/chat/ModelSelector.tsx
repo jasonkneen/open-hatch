@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { ChevronDown, Sparkles, Zap } from 'lucide-react';
 import { AI_MODELS } from '../../types';
 

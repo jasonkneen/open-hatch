@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
   Upload, File, FileText, Image, Code2, Archive, Trash2,
-  Download, LayoutGrid, List, Search
+  LayoutGrid, List, Search
 } from 'lucide-react';
 import type { UploadedFile } from '../../types';
 

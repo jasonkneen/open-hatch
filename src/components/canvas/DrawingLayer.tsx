@@ -592,11 +592,11 @@ export function DrawingLayer({
             onTextChange={(text) => onUpdateObject(obj.id, { text_content: text })}
             onStopEditing={() => setEditingTextId(null)}
             onResizeStart={(handle, e) => handleResizeStart(obj.id, handle, e)}
-            showResizeHandles={selectedIds.size === 1 && selectedIds.has(obj.id) && activeTool === 'select'}
+            showResizeHandles={selectedIds.size === 1 && selectedIds.has(obj.id) && tool === 'select'}
           />
         ))}
 
-        {drawingActive && previewBounds && activeTool !== 'select' && activeTool !== 'pen' && activeTool !== 'text' && activeTool !== 'sticky_note' && activeTool !== 'eraser' && (
+        {drawingActive && previewBounds && activeTool !== 'pen' && activeTool !== 'text' && activeTool !== 'sticky_note' && activeTool !== 'eraser' && (
           <LiveShapePreview
             tool={activeTool}
             bounds={previewBounds}

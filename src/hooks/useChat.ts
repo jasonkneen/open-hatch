@@ -22,7 +22,9 @@ export function useChat(workspaceId: string | null) {
     });
     if (data) {
       setSessions(data);
-      if (data.length > 0 && !activeSession) setActiveSession(data[0]);
+      if (data.length > 0) {
+        setActiveSession(prev => prev ?? data[0]);
+      }
     }
   }, [workspaceId]);
 
@@ -186,7 +188,9 @@ export function useChat(workspaceId: string | null) {
                   m.id === assistantMsgId ? { ...m, content: fullContent } : m
                 ));
               }
-            } catch {}
+            } catch {
+              // Ignore malformed stream chunks and keep consuming the stream.
+            }
           }
         }
       }

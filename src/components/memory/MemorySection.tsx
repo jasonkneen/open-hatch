@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Brain, Plus, Trash2, CreditCard as Edit3, Check, X, Tag } from 'lucide-react';
 import type { MemoryFact } from '../../types';
 

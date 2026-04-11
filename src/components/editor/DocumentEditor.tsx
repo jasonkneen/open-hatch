@@ -8,13 +8,11 @@ import type { Document } from '../../types';
 interface DocumentEditorProps {
   document: Document | null;
   documents: Document[];
-  onSave: (id: string, updates: { title?: string; content?: string }) => void;
   onAutoSave: (id: string, updates: { title?: string; content?: string }) => void;
   onNew: () => void;
   onOpen: (doc: Document) => void;
   onDelete: (id: string) => void;
   onToggleFavorite: (id: string, current: boolean) => void;
-  savedStatus: 'idle' | 'saving' | 'saved';
   onSavedStatusChange: (status: 'idle' | 'saving' | 'saved') => void;
 }
 
@@ -125,13 +123,11 @@ function DocSidebar({
 export function DocumentEditor({
   document: doc,
   documents,
-  onSave,
   onAutoSave,
   onNew,
   onOpen,
   onDelete,
   onToggleFavorite,
-  savedStatus,
   onSavedStatusChange,
 }: DocumentEditorProps) {
   const [title, setTitle] = useState(doc?.title || '');
@@ -143,7 +139,7 @@ export function DocumentEditor({
     if (contentRef.current && doc) {
       contentRef.current.innerHTML = doc.content || '';
     }
-  }, [doc?.id]);
+  }, [doc]);
 
   const triggerAutoSave = useCallback((newTitle?: string, newContent?: string) => {
     if (!doc) return;

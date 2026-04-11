@@ -4,7 +4,6 @@ import type { Document } from '../../types';
 
 interface DocWindowContentProps {
   document: Document;
-  onSave: (id: string, updates: { title?: string; content?: string }) => void;
   onAutoSave: (id: string, updates: { title?: string; content?: string }) => void;
   onToggleFavorite: (id: string, current: boolean) => void;
   onDelete: (id: string) => void;
@@ -133,7 +132,7 @@ export function DocWindowContent({
       contentRef.current.innerHTML = doc.content || '';
       hydrateSketchCanvases(contentRef.current);
     }
-  }, [doc.id]);
+  }, [doc]);
 
   useEffect(() => {
     const el = contentRef.current;

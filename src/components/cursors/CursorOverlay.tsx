@@ -1,4 +1,3 @@
-import React from 'react';
 import type { CursorPresence } from '../../hooks/useMultiplayerCursors';
 
 interface CursorOverlayProps {

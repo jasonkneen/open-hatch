@@ -167,7 +167,9 @@ export function useCanvasObjects(workspaceId: string | null, userId?: string, ac
     if (firstAttempt.data) {
       data = { ...(firstAttempt.data as CanvasObject), layer_id: (firstAttempt.data as CanvasObject).layer_id || activeLayerId } as CanvasObject;
     } else if (firstAttempt.error && String(firstAttempt.error.message || '').toLowerCase().includes('layer_id')) {
-      const { layer_id: _ignored, ...fallbackPayload } = insertPayload;
+      const fallbackPayload = Object.fromEntries(
+        Object.entries(insertPayload).filter(([key]) => key !== 'layer_id')
+      );
       const retry = await supabase
         .from('canvas_objects')
         .insert(fallbackPayload)

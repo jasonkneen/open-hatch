@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, FileText, Brain, Layers3, ChevronDown } from 'lucide-react';
+import { MessageSquare, FileText, Brain, Layers3 } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import { NetworkStatusBar } from './components/layout/NetworkStatusBar';
 import { HomeCanvas } from './components/home/HomeCanvas';
@@ -53,7 +53,6 @@ export default function App() {
   const [showCanvasGrid, setShowCanvasGrid] = useState(false);
   const [canvasGridBackground] = useState(() => CANVAS_BACKGROUNDS[Math.floor(Math.random() * CANVAS_BACKGROUNDS.length)]);
   const activeSceneRef = useRef<HTMLDivElement>(null);
-  const floorButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const { workspaces, loading: wsLoading, createWorkspace } = useWorkspaces(user?.id);
   const activeWorkspace = workspaces.find(w => w.id === activeWorkspaceId) || workspaces[0] || null;
@@ -66,7 +65,7 @@ export default function App() {
 
   const {
     documents, recents,
-    createDocument, saveDocument, autoSave, deleteDocument, toggleFavorite
+    createDocument, autoSave, deleteDocument, toggleFavorite
   } = useDocuments(activeWorkspaceId);
 
   const {
@@ -78,7 +77,7 @@ export default function App() {
   const { uploadFiles } = useFiles(activeWorkspaceId);
   const { online, syncing, pendingCount, flushQueue } = useNetworkStatus();
   const { mode: themeMode, setTheme } = useTheme();
-  const { layers, activeLayer, activeLayerId, createLayer, activateLayer, minimizeActiveLayer, deleteLayer, baseLayerId } = useCanvasLayers(activeWorkspaceId || null);
+  const { layers, activeLayer, activeLayerId, createLayer, activateLayer, deleteLayer, baseLayerId } = useCanvasLayers(activeWorkspaceId || null);
   const { windows, openWindow, closeWindow, focusWindow, updateWindow, minimizeWindow } = useWindows();
   const canvasRef = useRef<HTMLElement>(null);
   const { cursors } = useMultiplayerCursors(
@@ -269,139 +268,6 @@ export default function App() {
     deleteLayer(layerId);
   }, [layers, baseLayerId, deleteObjectsInLayer, deleteLayer]);
 
-  const createSceneSnapshot = useCallback(() => {
-    if (!activeSceneRef.current) return null;
-    const rect = activeSceneRef.current.getBoundingClientRect();
-    const clone = activeSceneRef.current.cloneNode(true) as HTMLDivElement;
-    clone.setAttribute('aria-hidden', 'true');
-    Object.assign(clone.style, {
-      position: 'fixed',
-      left: `${rect.left}px`,
-      top: `${rect.top}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-      margin: '0',
-      pointerEvents: 'none',
-      zIndex: '140',
-      overflow: 'hidden',
-      transformOrigin: 'center center',
-      transform: 'translate3d(0,0,0) scale(1)',
-      borderRadius: '24px',
-      boxShadow: '0 24px 80px rgba(0,0,0,0.32)',
-      background: 'var(--canvas-base)',
-      isolation: 'isolate',
-    });
-    document.body.appendChild(clone);
-    return { clone, rect };
-  }, []);
-
-  const animateSnapshotToFloor = useCallback((snapshot: { clone: HTMLDivElement; rect: DOMRect } | null, layerId: string) => {
-    if (!snapshot) return;
-
-    const targetEl = floorButtonRefs.current[layerId];
-    const targetRect = targetEl?.getBoundingClientRect() || new DOMRect(18, window.innerHeight - 120, 220, 72);
-    const dx = targetRect.left - snapshot.rect.left + (targetRect.width - snapshot.rect.width) / 2;
-    const dy = targetRect.top - snapshot.rect.top + (targetRect.height - snapshot.rect.height) / 2;
-    const scaleX = targetRect.width / snapshot.rect.width;
-    const scaleY = Math.max(targetRect.height / snapshot.rect.height, 0.12);
-
-    const animation = snapshot.clone.animate([
-      {
-        transform: 'translate3d(0,0,0) scale(1,1)',
-        opacity: 1,
-        filter: 'blur(0px)',
-      },
-      {
-        transform: `translate3d(${dx}px, ${dy}px, 0) scale(${scaleX}, ${scaleY})`,
-        opacity: 0,
-        filter: 'blur(2px)',
-      },
-    ], {
-      duration: 520,
-      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-      fill: 'forwards',
-    });
-
-    animation.finished.finally(() => {
-      snapshot.clone.remove();
-    });
-  }, []);
-
-  const animateFloorToScene = useCallback((layerId: string) => {
-    const sourceEl = floorButtonRefs.current[layerId];
-    if (!sourceEl || !canvasRef.current) return;
-
-    const sourceRect = sourceEl.getBoundingClientRect();
-    const targetRect = canvasRef.current.getBoundingClientRect();
-    const clone = sourceEl.cloneNode(true) as HTMLButtonElement;
-    clone.setAttribute('aria-hidden', 'true');
-    Object.assign(clone.style, {
-      position: 'fixed',
-      left: `${sourceRect.left}px`,
-      top: `${sourceRect.top}px`,
-      width: `${sourceRect.width}px`,
-      height: `${sourceRect.height}px`,
-      margin: '0',
-      pointerEvents: 'none',
-      zIndex: '135',
-      transformOrigin: 'center center',
-      boxShadow: '0 24px 80px rgba(0,0,0,0.28)',
-    });
-    document.body.appendChild(clone);
-
-    const dx = targetRect.left - sourceRect.left + (targetRect.width - sourceRect.width) / 2;
-    const dy = targetRect.top - sourceRect.top + (targetRect.height - sourceRect.height) / 2;
-    const scaleX = targetRect.width / sourceRect.width;
-    const scaleY = targetRect.height / sourceRect.height;
-
-    const animation = clone.animate([
-      {
-        transform: 'translate3d(0,0,0) scale(1,1)',
-        opacity: 0.18,
-        filter: 'blur(2px)',
-      },
-      {
-        transform: `translate3d(${dx}px, ${dy}px, 0) scale(${scaleX}, ${scaleY})`,
-        opacity: 0,
-        filter: 'blur(0px)',
-      },
-    ], {
-      duration: 520,
-      easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
-      fill: 'forwards',
-    });
-
-    animation.finished.finally(() => {
-      clone.remove();
-    });
-  }, []);
-
-  const handleCreateLayerAnimated = useCallback(() => {
-    const fromLayerId = activeLayerId;
-    const snapshot = createSceneSnapshot();
-    createLayer();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        animateSnapshotToFloor(snapshot, fromLayerId);
-      });
-    });
-  }, [activeLayerId, animateSnapshotToFloor, createLayer, createSceneSnapshot]);
-
-  const handleMinimizeLayerAnimated = useCallback(() => {
-    const fromLayerId = activeLayerId;
-    const snapshot = createSceneSnapshot();
-    minimizeActiveLayer();
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        animateSnapshotToFloor(snapshot, fromLayerId);
-      });
-    });
-  }, [activeLayerId, animateSnapshotToFloor, createSceneSnapshot, minimizeActiveLayer]);
-
-  const handleActivateLayerAnimated = useCallback((layerId: string) => {
-    animateFloorToScene(layerId);
-    activateLayer(layerId);
-  }, [activateLayer, animateFloorToScene]);
 
   if (authLoading) {
     return (
@@ -502,7 +368,6 @@ export default function App() {
                 onSendMessage={sendMessage}
                 onSetActiveSession={setActiveSession}
                 onDeleteDocument={deleteDocument}
-                onSaveDocument={saveDocument}
                 onAutoSaveDocument={autoSave}
                 onToggleFavorite={toggleFavorite}
                 onAddFact={addFact}
@@ -617,70 +482,6 @@ export default function App() {
   );
 }
 
-function CanvasStackControls({
-  activeLayerName,
-  onCreateLayer,
-  onMinimizeLayer,
-}: {
-  activeLayerName: string;
-  onCreateLayer: () => void;
-  onMinimizeLayer: () => void;
-}) {
-  return (
-    <div style={{
-      position: 'absolute',
-      top: '14px',
-      left: '14px',
-      zIndex: 80,
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-    }}>
-      <button
-        onClick={onCreateLayer}
-        title="Create a new canvas floor"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px',
-          padding: '10px 12px',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          background: 'var(--canvas-elevated)',
-          boxShadow: 'var(--shadow-md)',
-          cursor: 'pointer',
-          color: 'var(--text-primary)',
-          fontSize: '12px',
-          fontWeight: 600,
-        }}
-      >
-        <Layers3 size={15} />
-        <span>{activeLayerName}</span>
-      </button>
-
-      <button
-        onClick={onMinimizeLayer}
-        title="Send this canvas back to the stack"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '38px',
-          height: '38px',
-          borderRadius: 'var(--radius-lg)',
-          border: '1px solid var(--border)',
-          background: 'var(--canvas-elevated)',
-          boxShadow: 'var(--shadow-md)',
-          cursor: 'pointer',
-          color: 'var(--text-secondary)',
-        }}
-      >
-        <ChevronDown size={16} />
-      </button>
-    </div>
-  );
-}
-
 function CanvasLayerScene({
   documents,
   facts,
@@ -704,7 +505,6 @@ function CanvasLayerScene({
   onSendMessage,
   onSetActiveSession,
   onDeleteDocument,
-  onSaveDocument,
   onAutoSaveDocument,
   onToggleFavorite,
   onAddFact,
@@ -733,7 +533,6 @@ function CanvasLayerScene({
   onSendMessage: (content: string, model: string, facts?: MemoryFact[], docs?: Document[]) => void;
   onSetActiveSession: (session: ChatSession) => void;
   onDeleteDocument: (id: string) => void;
-  onSaveDocument: (id: string, updates: { title?: string; content?: string }) => void;
   onAutoSaveDocument: (id: string, updates: { title?: string; content?: string }) => void;
   onToggleFavorite: (id: string, current: boolean) => void;
   onAddFact: (fact: string, category: string) => void;
@@ -799,7 +598,6 @@ function CanvasLayerScene({
             >
               <DocWindowContent
                 document={doc}
-                onSave={onSaveDocument}
                 onAutoSave={onAutoSaveDocument}
                 onToggleFavorite={onToggleFavorite}
                 onDelete={async (id) => {

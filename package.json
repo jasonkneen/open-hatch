@@ -1,7 +1,9 @@
 {
-  "name": "vite-react-typescript-starter",
+  "name": "stursky-open-hatch",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Realtime collaborative workspace for chat, documents, memory, files, and shared canvas.",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",

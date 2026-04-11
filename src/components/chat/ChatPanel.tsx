@@ -11,7 +11,6 @@ interface ChatPanelProps {
   activeSession: ChatSession | null;
   messages: Message[];
   streaming: boolean;
-  loading: boolean;
   memoryFacts: MemoryFact[];
   documents: Document[];
   onNewSession: () => void;
@@ -199,7 +198,6 @@ export function ChatPanel({
   activeSession,
   messages,
   streaming,
-  loading,
   memoryFacts,
   documents,
   onNewSession,
