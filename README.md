@@ -175,4 +175,4 @@ Open Hatch currently focuses on:
 
 ## License
 
-Add your preferred license here before public release.
+MIT
