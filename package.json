@@ -11,8 +11,9 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
-    "electron:build": "vite build && electron-builder",
-    "electron:dist": "vite build && electron-builder --publish never"
+    "icon": "node scripts/generate-icon.cjs",
+    "electron:build": "npm run icon && vite build && electron-builder",
+    "electron:dist": "npm run icon && vite build && electron-builder --publish never"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
@@ -34,6 +35,7 @@
     "eslint-plugin-react-refresh": "^0.4.11",
     "globals": "^15.9.0",
     "postcss": "^8.4.35",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.3.0",

@@ -38,11 +38,18 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate app icon from SVG
+        run: npm run icon
+
       - name: Build web bundle
         run: npm run build
 
-      - name: Build & publish Electron installers
-        run: npx --no-install electron-builder --publish always
+      - name: Build Electron installers
+        # Publish to a GitHub release only when the workflow was triggered by
+        # a version tag. Manual `workflow_dispatch` runs build the same
+        # installers but leave them as workflow artifacts only, so you can
+        # smoke-test the pipeline on a branch without creating a release.
+        run: npx --no-install electron-builder --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}
         env:
           # GH_TOKEN is required by electron-builder to upload assets to the
           # release that matches the pushed tag.
