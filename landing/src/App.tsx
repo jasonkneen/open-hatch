@@ -1,0 +1,425 @@
+import {
+  ArrowRight,
+  Brain,
+  Download,
+  FileText,
+  Github,
+  MessageSquare,
+  MousePointer2,
+  PenTool,
+  Users,
+} from 'lucide-react';
+
+const REPO_URL = 'https://github.com/jasonkneen/open-hatch';
+
+function Logo() {
+  return (
+    <div className="flex items-center gap-2">
+      <img src="/icon.svg" alt="" className="h-7 w-7" />
+      <span className="text-base font-semibold tracking-tight">Open Hatch</span>
+    </div>
+  );
+}
+
+function Nav() {
+  return (
+    <header className="relative z-20">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
+        <Logo />
+        <nav className="flex items-center gap-6 text-sm">
+          <a href="#features" className="text-hatch-muted hover:text-white transition-colors">
+            Features
+          </a>
+          <a href="#teams" className="text-hatch-muted hover:text-white transition-colors">
+            For teams
+          </a>
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-md border border-hatch-border bg-hatch-panel px-3 py-1.5 text-white hover:border-hatch-accent/60 hover:bg-hatch-panel/80 transition-colors"
+          >
+            <Github className="h-4 w-4" />
+            GitHub
+          </a>
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function Hero() {
+  return (
+    <section className="relative overflow-hidden">
+      <div className="absolute inset-0 grid-bg radial-fade opacity-60" />
+      <div
+        className="absolute inset-x-0 top-0 h-[520px] opacity-40"
+        style={{
+          background:
+            'radial-gradient(ellipse 60% 50% at 50% 0%, rgba(79,156,249,0.25), transparent 70%)',
+        }}
+      />
+      <div className="relative mx-auto max-w-6xl px-6 pt-20 pb-28 text-center">
+        <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-hatch-border bg-hatch-panel/70 px-3 py-1 text-xs text-hatch-muted backdrop-blur">
+          <span className="h-1.5 w-1.5 rounded-full bg-hatch-accent" />
+          Free to download. Run it locally.
+        </div>
+        <h1 className="mx-auto mt-6 max-w-3xl text-5xl font-semibold tracking-tight sm:text-6xl">
+          A collaborative workspace
+          <br />
+          <span className="text-hatch-muted">built for teams.</span>
+        </h1>
+        <p className="mx-auto mt-6 max-w-xl text-lg text-hatch-muted">
+          Chat, documents, memory, files and a shared realtime canvas — all in one workspace your
+          team actually wants to use.
+        </p>
+        <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Download & run locally
+          </a>
+          <a
+            href="#features"
+            className="inline-flex items-center gap-1.5 rounded-md border border-hatch-border bg-hatch-panel px-5 py-3 text-sm font-medium text-white hover:border-hatch-accent/60 transition-colors"
+          >
+            See what's inside
+            <ArrowRight className="h-4 w-4" />
+          </a>
+        </div>
+      </div>
+
+      <div className="relative mx-auto max-w-5xl px-6 pb-24">
+        <div className="overflow-hidden rounded-xl border border-hatch-border bg-hatch-panel shadow-2xl shadow-black/60">
+          <div className="flex items-center gap-1.5 border-b border-hatch-border px-4 py-2.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3a3a]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3a3a]" />
+            <span className="h-2.5 w-2.5 rounded-full bg-[#3a3a3a]" />
+            <span className="ml-3 text-xs text-hatch-muted">workspace — team canvas</span>
+          </div>
+          <div className="relative aspect-[16/9] w-full overflow-hidden bg-[#0f0f0f]">
+            <div className="absolute inset-0 grid-bg opacity-70" />
+            <div className="absolute left-[8%] top-[18%] w-56 rounded-md border border-hatch-border bg-[#181818] p-3 text-left shadow-lg">
+              <div className="flex items-center gap-2 text-xs text-hatch-muted">
+                <MessageSquare className="h-3.5 w-3.5" />
+                AI chat
+              </div>
+              <div className="mt-2 text-xs text-white/80">Summarise the roadmap notes →</div>
+              <div className="mt-2 h-1.5 w-28 rounded-full bg-white/10" />
+              <div className="mt-1 h-1.5 w-20 rounded-full bg-white/10" />
+            </div>
+            <div className="absolute right-[10%] top-[14%] w-52 rounded-md border border-hatch-border bg-[#181818] p-3 text-left shadow-lg">
+              <div className="flex items-center gap-2 text-xs text-hatch-muted">
+                <FileText className="h-3.5 w-3.5" />
+                Q2 plan
+              </div>
+              <div className="mt-2 h-1.5 w-36 rounded-full bg-white/10" />
+              <div className="mt-1 h-1.5 w-24 rounded-full bg-white/10" />
+              <div className="mt-1 h-1.5 w-32 rounded-full bg-white/10" />
+            </div>
+            <div className="absolute bottom-[14%] left-[22%] w-40 rounded-md border border-hatch-border bg-[#1a1610] p-3 text-left shadow-lg">
+              <div className="text-xs text-amber-300/90">sticky note</div>
+              <div className="mt-1 text-xs text-white/80">ship beta → Friday</div>
+            </div>
+            <div className="absolute bottom-[22%] right-[18%] flex items-center gap-2">
+              <MousePointer2
+                className="h-4 w-4 -rotate-12 text-hatch-accent"
+                fill="currentColor"
+              />
+              <span className="rounded bg-hatch-accent px-1.5 py-0.5 text-[10px] font-medium text-white">
+                alex
+              </span>
+            </div>
+            <div className="absolute right-[40%] top-[40%] flex items-center gap-2">
+              <MousePointer2 className="h-4 w-4 -rotate-12 text-pink-400" fill="currentColor" />
+              <span className="rounded bg-pink-500 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                sam
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+const features = [
+  {
+    icon: PenTool,
+    title: 'Shared realtime canvas',
+    body: 'Draw, drop shapes, sticky notes, arrows and strokes that everyone sees instantly.',
+  },
+  {
+    icon: MessageSquare,
+    title: 'AI chat, inline',
+    body: 'Ask, summarise and brainstorm without leaving the workspace.',
+  },
+  {
+    icon: FileText,
+    title: 'Documents with autosave',
+    body: 'Write alongside the canvas. Changes save as you type.',
+  },
+  {
+    icon: Brain,
+    title: 'Team memory',
+    body: 'Keep facts, snippets and context your whole team can build on.',
+  },
+  {
+    icon: Users,
+    title: 'Live presence & cursors',
+    body: 'See who is where. Follow along, or break off and explore.',
+  },
+  {
+    icon: Download,
+    title: 'Local-first, free',
+    body: 'Clone, install, run. Bring your own Supabase project and go.',
+  },
+] as const;
+
+function Features() {
+  return (
+    <section id="features" className="relative border-t border-hatch-border">
+      <div className="mx-auto max-w-6xl px-6 py-24">
+        <div className="max-w-2xl">
+          <div className="text-xs uppercase tracking-wider text-hatch-accent">Features</div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            One workspace. Everything your team needs.
+          </h2>
+          <p className="mt-4 text-hatch-muted">
+            Open Hatch brings the tools teams already reach for into a single shared room — without
+            the tab-juggling.
+          </p>
+        </div>
+
+        <div className="mt-14 grid gap-px overflow-hidden rounded-xl border border-hatch-border bg-hatch-border sm:grid-cols-2 lg:grid-cols-3">
+          {features.map(({ icon: Icon, title, body }) => (
+            <div key={title} className="bg-hatch-bg p-6">
+              <div className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-hatch-border bg-hatch-panel text-hatch-accent">
+                <Icon className="h-4 w-4" />
+              </div>
+              <h3 className="mt-4 text-base font-medium text-white">{title}</h3>
+              <p className="mt-1.5 text-sm text-hatch-muted">{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Teams() {
+  return (
+    <section id="teams" className="relative border-t border-hatch-border">
+      <div className="mx-auto grid max-w-6xl gap-16 px-6 py-24 lg:grid-cols-2 lg:items-center">
+        <div>
+          <div className="text-xs uppercase tracking-wider text-hatch-accent">For teams</div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            Think together, in the same room.
+          </h2>
+          <p className="mt-4 text-hatch-muted">
+            Workspaces are the unit of collaboration. Invite members, assign roles, and work side
+            by side on the same canvas — with local windows that don't get in anyone's way.
+          </p>
+          <ul className="mt-8 space-y-4 text-sm">
+            {[
+              'Workspace-first sharing with members and roles',
+              'Local windows, shared content — no one gets dragged around',
+              'Realtime cursors and presence so context stays alive',
+              'Drop files, images and notes anywhere on the canvas',
+            ].map((line) => (
+              <li key={line} className="flex items-start gap-3 text-white/90">
+                <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-hatch-accent" />
+                {line}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="relative">
+          <div
+            className="absolute -inset-10 opacity-40"
+            style={{
+              background:
+                'radial-gradient(circle at 50% 50%, rgba(79,156,249,0.25), transparent 60%)',
+            }}
+          />
+          <div className="relative overflow-hidden rounded-xl border border-hatch-border bg-hatch-panel">
+            <div className="grid grid-cols-2 gap-px bg-hatch-border">
+              {[
+                { name: 'Product', count: 6 },
+                { name: 'Design', count: 4 },
+                { name: 'Research', count: 3 },
+                { name: 'Launch', count: 8 },
+              ].map((w) => (
+                <div key={w.name} className="bg-hatch-bg p-5">
+                  <div className="flex items-center justify-between text-xs text-hatch-muted">
+                    <span>workspace</span>
+                    <span>{w.count} members</span>
+                  </div>
+                  <div className="mt-2 text-base font-medium text-white">{w.name}</div>
+                  <div className="mt-4 flex -space-x-1.5">
+                    {Array.from({ length: Math.min(w.count, 5) }).map((_, i) => (
+                      <div
+                        key={i}
+                        className="h-6 w-6 rounded-full border-2 border-hatch-bg"
+                        style={{
+                          background: ['#4f9cf9', '#f472b6', '#34d399', '#fbbf24', '#a78bfa'][i],
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Pricing() {
+  return (
+    <section id="pricing" className="relative border-t border-hatch-border">
+      <div className="mx-auto max-w-6xl px-6 py-24">
+        <div className="mx-auto max-w-2xl text-center">
+          <div className="text-xs uppercase tracking-wider text-hatch-accent">Pricing</div>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">
+            The app is free. Always.
+          </h2>
+          <p className="mt-4 text-hatch-muted">
+            Download Open Hatch and run it on your own infrastructure at no cost. Need somewhere to
+            keep everyone's files? Add cloud storage when you're ready.
+          </p>
+        </div>
+
+        <div className="mx-auto mt-14 grid max-w-4xl gap-6 md:grid-cols-2">
+          <div className="rounded-xl border border-hatch-border bg-hatch-panel p-8">
+            <div className="text-sm text-hatch-muted">Local</div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-4xl font-semibold text-white">Free</span>
+              <span className="text-hatch-muted">forever</span>
+            </div>
+            <p className="mt-3 text-sm text-hatch-muted">
+              Clone, install, run. Bring your own Supabase project. All features included.
+            </p>
+            <ul className="mt-6 space-y-2.5 text-sm text-white/90">
+              {[
+                'Full app, no feature gates',
+                'Realtime canvas, chat, docs, memory',
+                'Self-hosted — your data, your rules',
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-hatch-accent" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-medium text-black hover:bg-white/90 transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Download
+            </a>
+          </div>
+
+          <div className="relative rounded-xl border border-hatch-accent/40 bg-hatch-panel p-8">
+            <div className="absolute right-5 top-5 rounded-full border border-hatch-accent/40 bg-hatch-accent/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-hatch-accent">
+              Optional
+            </div>
+            <div className="text-sm text-hatch-muted">Cloud storage</div>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-4xl font-semibold text-white">$6</span>
+              <span className="text-hatch-muted">/ user / month</span>
+            </div>
+            <p className="mt-3 text-sm text-hatch-muted">
+              Managed storage for files, uploads and snapshots. Skip the self-hosting for the
+              heaviest bit.
+            </p>
+            <ul className="mt-6 space-y-2.5 text-sm text-white/90">
+              {[
+                '100 GB per user, pooled across the team',
+                'Automatic backups & versioning',
+                'Drop-in — no code changes',
+              ].map((line) => (
+                <li key={line} className="flex items-start gap-2.5">
+                  <span className="mt-1.5 h-1.5 w-1.5 flex-none rounded-full bg-hatch-accent" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+            <a
+              href={REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-8 inline-flex w-full items-center justify-center gap-2 rounded-md border border-hatch-border bg-hatch-bg px-4 py-2.5 text-sm font-medium text-white hover:border-hatch-accent/60 transition-colors"
+            >
+              Join the waitlist
+              <ArrowRight className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function CTA() {
+  return (
+    <section className="relative border-t border-hatch-border">
+      <div className="mx-auto max-w-4xl px-6 py-24 text-center">
+        <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          Open the hatch. Bring your team in.
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-hatch-muted">
+          Free forever, local-first, and built for the way teams actually think together.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <a
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-2 rounded-md bg-white px-5 py-3 text-sm font-medium text-black hover:bg-white/90 transition-colors"
+          >
+            <Github className="h-4 w-4" />
+            Get it on GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-hatch-border">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 text-sm text-hatch-muted sm:flex-row">
+        <Logo />
+        <div>© {new Date().getFullYear()} Open Hatch. MIT licensed.</div>
+      </div>
+    </footer>
+  );
+}
+
+export default function App() {
+  return (
+    <div className="min-h-screen bg-hatch-bg">
+      <Nav />
+      <main>
+        <Hero />
+        <Features />
+        <Teams />
+        <Pricing />
+        <CTA />
+      </main>
+      <Footer />
+    </div>
+  );
+}
