@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // Use relative asset URLs so the same bundle works when served from a web
+  // root and when loaded from disk inside the Electron desktop wrapper.
+  base: './',
   plugins: [
     react(),
     VitePWA({
