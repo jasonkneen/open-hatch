@@ -2,6 +2,9 @@
 
 A realtime collaborative workspace for chat, documents, memory, files, and a shared canvas.
 
+<img width="1625" height="1069" alt="image" src="https://github.com/user-attachments/assets/b57b9aca-ef3f-4c88-84fb-a58be227912e" />
+
+
 ## What it is
 
 Open Hatch is a multiplayer workspace app built with React, TypeScript, Vite, and Supabase. A **workspace** is the top-level shared room. Inside a workspace, users can:
@@ -175,4 +178,4 @@ Open Hatch currently focuses on:
 
 ## License
 
-Add your preferred license here before public release.
+MIT
