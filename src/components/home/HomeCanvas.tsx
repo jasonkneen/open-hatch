@@ -109,7 +109,8 @@ export function HomeCanvas({
       alignItems: 'center',
       justifyContent: 'center',
       overflow: 'hidden',
-      padding: '40px 24px',
+      padding: '0 24px',
+      pointerEvents: 'none',
     }}>
       <div style={{
         position: 'absolute',
@@ -136,6 +137,7 @@ export function HomeCanvas({
         gap: '24px',
         maxWidth: '640px',
         width: '100%',
+        pointerEvents: 'auto',
       }}>
         <h1 style={{
           fontSize: '28px',
