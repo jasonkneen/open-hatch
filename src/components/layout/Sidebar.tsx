@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import {
   Search, Sparkles, FileText, Paperclip, FolderPlus,
-  PanelLeftClose, PanelLeft, MessageSquare, Brain, LogOut
+  PanelLeftClose, PanelLeft, MessageSquare, Brain, LogOut,
+  CheckCircle2, Activity,
 } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import type { ThemeMode } from '../../hooks/useTheme';
@@ -19,6 +20,9 @@ interface SidebarProps {
   onDocumentOpen: (doc: Document) => void;
   onSessionOpen: (session: ChatSession) => void;
   onOpenMemory: () => void;
+  onOpenTasks?: () => void;
+  onOpenActivity?: () => void;
+  openTaskCount?: number;
   recents: Document[];
   sessions: ChatSession[];
   floatingWindows: FloatingWindow[];
@@ -40,6 +44,9 @@ export function Sidebar({
   onDocumentOpen,
   onSessionOpen,
   onOpenMemory,
+  onOpenTasks,
+  onOpenActivity,
+  openTaskCount = 0,
   recents,
   sessions,
   themeMode,
@@ -84,6 +91,8 @@ export function Sidebar({
         <IconButton icon={<Search size={16} />} title="Search" onClick={onOpenCommandPalette} />
         <IconButton icon={<Sparkles size={16} />} title="New Chat" onClick={onNewChat} />
         <IconButton icon={<FileText size={16} />} title="New Document" onClick={onNewDocument} />
+        {onOpenTasks && <IconButton icon={<CheckCircle2 size={16} />} title={`Tasks${openTaskCount ? ` (${openTaskCount})` : ''}`} onClick={onOpenTasks} />}
+        {onOpenActivity && <IconButton icon={<Activity size={16} />} title="Activity" onClick={onOpenActivity} />}
         <IconButton icon={<Brain size={16} />} title="Memory" onClick={onOpenMemory} />
         <div style={{ flex: 1 }} />
         <IconButton icon={<LogOut size={16} />} title="Sign out" onClick={onSignOut} />
@@ -147,6 +156,26 @@ export function Sidebar({
         <ActionRow icon={<Paperclip size={14} />} label="Upload a file" onClick={onUploadFile} hovered={hoveredItem === 'upload'} onHover={() => setHoveredItem('upload')} onLeave={() => setHoveredItem(null)} />
         <ActionRow icon={<FolderPlus size={14} />} label="Create a workspace" onClick={onCreateWorkspace} hovered={hoveredItem === 'ws'} onHover={() => setHoveredItem('ws')} onLeave={() => setHoveredItem(null)} />
         <ActionRow icon={<Brain size={14} />} label="Memory" onClick={onOpenMemory} hovered={hoveredItem === 'memory'} onHover={() => setHoveredItem('memory')} onLeave={() => setHoveredItem(null)} />
+        {onOpenTasks && (
+          <ActionRow
+            icon={<CheckCircle2 size={14} />}
+            label={openTaskCount > 0 ? `Tasks · ${openTaskCount}` : 'Tasks'}
+            onClick={onOpenTasks}
+            hovered={hoveredItem === 'tasks'}
+            onHover={() => setHoveredItem('tasks')}
+            onLeave={() => setHoveredItem(null)}
+          />
+        )}
+        {onOpenActivity && (
+          <ActionRow
+            icon={<Activity size={14} />}
+            label="Activity"
+            onClick={onOpenActivity}
+            hovered={hoveredItem === 'activity'}
+            onHover={() => setHoveredItem('activity')}
+            onLeave={() => setHoveredItem(null)}
+          />
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '0 8px' }}>

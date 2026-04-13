@@ -58,6 +58,8 @@ export function useWindows() {
         chat: { width: 380, height: 500 },
         document: { width: 520, height: 480 },
         memory: { width: 440, height: 520 },
+        tasks: { width: 440, height: 540 },
+        activity: { width: 400, height: 540 },
       };
       const size = sizeMap[type] || sizeMap.chat;
       const pos = getSpawnPosition(prev, size);

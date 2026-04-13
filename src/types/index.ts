@@ -96,9 +96,68 @@ export interface CanvasGroup {
 
 export type CanvasTool = 'select' | 'pen' | 'rect' | 'ellipse' | 'diamond' | 'line' | 'arrow' | 'text' | 'eraser' | 'sticky_note';
 
-export type ActiveView = 'chat' | 'document' | 'memory' | 'files';
+export type ActiveView = 'chat' | 'document' | 'memory' | 'files' | 'tasks' | 'activity';
 
-export type FloatingWindowType = 'chat' | 'document' | 'memory';
+export type FloatingWindowType = 'chat' | 'document' | 'memory' | 'tasks' | 'activity';
+
+export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
+export type TaskPriority = 'low' | 'normal' | 'high' | 'urgent';
+export type TaskSourceType = 'manual' | 'chat' | 'document' | 'canvas' | 'ai';
+
+export interface Task {
+  id: string;
+  workspace_id: string;
+  created_by: string | null;
+  assignee_id: string | null;
+  title: string;
+  description: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  source_type: TaskSourceType | null;
+  source_id: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentComment {
+  id: string;
+  document_id: string;
+  workspace_id: string;
+  user_id: string | null;
+  parent_id: string | null;
+  content: string;
+  anchor_text: string;
+  resolved: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ActivityEventType =
+  | 'document_created'
+  | 'document_updated'
+  | 'document_deleted'
+  | 'task_created'
+  | 'task_completed'
+  | 'task_updated'
+  | 'comment_created'
+  | 'chat_created'
+  | 'memory_added'
+  | 'member_joined'
+  | 'canvas_updated';
+
+export interface ActivityEvent {
+  id: string;
+  workspace_id: string;
+  user_id: string | null;
+  event_type: ActivityEventType;
+  entity_type: string | null;
+  entity_id: string | null;
+  title: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
 
 export interface FloatingWindow {
   id: string;

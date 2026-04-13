@@ -6,8 +6,10 @@ import {
   Brain,
   Plus,
   ArrowRight,
+  CheckCircle2,
+  Activity,
 } from 'lucide-react';
-import type { ActiveView, Document, ChatSession, MemoryFact } from '../../types';
+import type { ActiveView, Document, ChatSession, MemoryFact, Task } from '../../types';
 
 interface CommandPaletteProps {
   open: boolean;
@@ -15,30 +17,44 @@ interface CommandPaletteProps {
   documents: Document[];
   sessions: ChatSession[];
   facts: MemoryFact[];
+  tasks?: Task[];
   onDocumentOpen: (doc: Document) => void;
   onSessionOpen: (session: ChatSession) => void;
+  onTaskOpen?: (task: Task) => void;
   onViewChange: (view: ActiveView) => void;
 }
 
 interface ResultItem {
   id: string;
-  type: 'document' | 'chat' | 'memory' | 'action';
+  type: 'document' | 'chat' | 'memory' | 'task' | 'action';
   label: string;
+  detail?: string;
   icon: React.ReactNode;
   badge: string;
   onSelect: () => void;
 }
 
-function fuzzyMatch(text: string, query: string): boolean {
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Smarter match: substring first (primary), then fuzzy fall-through.
+ * Also returns a simple score for ranking.
+ */
+function scoreMatch(text: string, query: string): number {
+  if (!query) return 1;
   const lower = text.toLowerCase();
   const q = query.toLowerCase();
+  const exact = lower.indexOf(q);
+  if (exact === 0) return 1000;
+  if (exact > 0) return 500 - Math.min(exact, 400);
+  // fuzzy
   let qi = 0;
   for (let i = 0; i < lower.length && qi < q.length; i++) {
-    if (lower[i] === q[qi]) {
-      qi++;
-    }
+    if (lower[i] === q[qi]) qi++;
   }
-  return qi === q.length;
+  return qi === q.length ? 50 : 0;
 }
 
 const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -47,8 +63,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
   documents,
   sessions,
   facts,
+  tasks = [],
   onDocumentOpen,
   onSessionOpen,
+  onTaskOpen,
   onViewChange,
 }) => {
   const [query, setQuery] = useState('');
@@ -93,6 +111,28 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
         },
       },
       {
+        id: 'action-go-tasks',
+        type: 'action' as const,
+        label: 'Go to Tasks',
+        icon: <CheckCircle2 size={16} />,
+        badge: 'Action',
+        onSelect: () => {
+          onViewChange('tasks');
+          onClose();
+        },
+      },
+      {
+        id: 'action-go-activity',
+        type: 'action' as const,
+        label: 'Go to Activity',
+        icon: <Activity size={16} />,
+        badge: 'Action',
+        onSelect: () => {
+          onViewChange('activity');
+          onClose();
+        },
+      },
+      {
         id: 'action-go-files',
         type: 'action' as const,
         label: 'Go to Files',
@@ -107,60 +147,91 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     [onViewChange, onClose]
   );
 
-  const allResults = useMemo((): ResultItem[] => {
-    const documentItems: ResultItem[] = documents.map((doc) => ({
-      id: `doc-${doc.id}`,
-      type: 'document' as const,
-      label: doc.title,
-      icon: <FileText size={16} />,
-      badge: 'Document',
-      onSelect: () => {
-        onDocumentOpen(doc);
-        onClose();
-      },
+  // Build searchable catalog. Documents get both title and plaintext content indexed.
+  const catalog = useMemo(() => {
+    const docs = documents.map((doc) => {
+      const plainContent = stripHtml(doc.content || '');
+      return {
+        item: {
+          id: `doc-${doc.id}`,
+          type: 'document' as const,
+          label: doc.title,
+          detail: plainContent.slice(0, 120),
+          icon: <FileText size={16} />,
+          badge: 'Document',
+          onSelect: () => { onDocumentOpen(doc); onClose(); },
+        } as ResultItem,
+        haystack: `${doc.title}\n${plainContent}`,
+      };
+    });
+
+    const chats = sessions.map((session) => ({
+      item: {
+        id: `chat-${session.id}`,
+        type: 'chat' as const,
+        label: session.title,
+        icon: <MessageSquare size={16} />,
+        badge: 'Chat',
+        onSelect: () => { onSessionOpen(session); onClose(); },
+      } as ResultItem,
+      haystack: session.title,
     }));
 
-    const chatItems: ResultItem[] = sessions.map((session) => ({
-      id: `chat-${session.id}`,
-      type: 'chat' as const,
-      label: session.title,
-      icon: <MessageSquare size={16} />,
-      badge: 'Chat',
-      onSelect: () => {
-        onSessionOpen(session);
-        onClose();
-      },
+    const memories = facts.map((fact) => ({
+      item: {
+        id: `memory-${fact.id}`,
+        type: 'memory' as const,
+        label: fact.fact,
+        icon: <Brain size={16} />,
+        badge: fact.category || 'Memory',
+        onSelect: () => { onViewChange('memory'); onClose(); },
+      } as ResultItem,
+      haystack: `${fact.category || ''} ${fact.fact}`,
     }));
 
-    const memoryItems: ResultItem[] = facts.map((fact) => ({
-      id: `memory-${fact.id}`,
-      type: 'memory' as const,
-      label: fact.fact,
-      icon: <Brain size={16} />,
-      badge: fact.category || 'Memory',
-      onSelect: () => {
-        onViewChange('memory');
-        onClose();
-      },
+    const taskItems = tasks.map((task) => ({
+      item: {
+        id: `task-${task.id}`,
+        type: 'task' as const,
+        label: task.title,
+        detail: task.description ? task.description.slice(0, 120) : `${task.status.replace('_', ' ')} · ${task.priority}`,
+        icon: <CheckCircle2 size={16} />,
+        badge: task.status === 'done' ? 'Done' : 'Task',
+        onSelect: () => {
+          if (onTaskOpen) onTaskOpen(task);
+          else onViewChange('tasks');
+          onClose();
+        },
+      } as ResultItem,
+      haystack: `${task.title} ${task.description || ''}`,
     }));
 
-    return [...documentItems, ...chatItems, ...memoryItems, ...actions];
-  }, [documents, sessions, facts, actions, onDocumentOpen, onSessionOpen, onViewChange, onClose]);
+    const actionItems = actions.map((a) => ({ item: a, haystack: a.label }));
+
+    return [...docs, ...chats, ...memories, ...taskItems, ...actionItems];
+  }, [documents, sessions, facts, tasks, actions, onDocumentOpen, onSessionOpen, onTaskOpen, onViewChange, onClose]);
 
   const filteredResults = useMemo(() => {
-    if (!query.trim()) return allResults;
-    return allResults.filter((item) => fuzzyMatch(item.label, query.trim()));
-  }, [allResults, query]);
+    const q = query.trim();
+    if (!q) return catalog.map(c => c.item);
+    const scored = catalog
+      .map(c => ({ item: c.item, score: scoreMatch(c.haystack, q) }))
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score);
+    return scored.map(s => s.item);
+  }, [catalog, query]);
 
   const groupedResults = useMemo(() => {
     const groups: { label: string; items: ResultItem[] }[] = [];
     const docItems = filteredResults.filter((r) => r.type === 'document');
     const chatItems = filteredResults.filter((r) => r.type === 'chat');
+    const taskItems = filteredResults.filter((r) => r.type === 'task');
     const memoryItems = filteredResults.filter((r) => r.type === 'memory');
     const actionItems = filteredResults.filter((r) => r.type === 'action');
 
     if (docItems.length > 0) groups.push({ label: 'Documents', items: docItems });
     if (chatItems.length > 0) groups.push({ label: 'Chats', items: chatItems });
+    if (taskItems.length > 0) groups.push({ label: 'Tasks', items: taskItems });
     if (memoryItems.length > 0) groups.push({ label: 'Memory', items: memoryItems });
     if (actionItems.length > 0) groups.push({ label: 'Actions', items: actionItems });
 
@@ -381,14 +452,36 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                       <span
                         style={{
                           flex: 1,
-                          fontSize: 14,
-                          color: 'var(--text-primary)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          minWidth: 0,
                         }}
                       >
-                        {item.label}
+                        <span
+                          style={{
+                            fontSize: 14,
+                            color: 'var(--text-primary)',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {item.label}
+                        </span>
+                        {item.detail && (
+                          <span
+                            style={{
+                              fontSize: 11,
+                              color: 'var(--text-muted)',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              marginTop: 1,
+                            }}
+                          >
+                            {item.detail}
+                          </span>
+                        )}
                       </span>
                       <span
                         style={{

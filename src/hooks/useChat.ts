@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { cachedFetch } from '../lib/offlineSupabase';
 import type { ChatSession, Message, MemoryFact, Document } from '../types';
+import type { WorkspaceContextSnapshot } from './useWorkspaceContext';
 
 export function useChat(workspaceId: string | null) {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
@@ -70,6 +71,7 @@ export function useChat(workspaceId: string | null) {
     model: string,
     memoryFacts?: MemoryFact[],
     linkedDocuments?: Document[],
+    workspaceContext?: WorkspaceContextSnapshot | null,
   ) => {
     if (!activeSession) return;
 
@@ -147,6 +149,7 @@ export function useChat(workspaceId: string | null) {
           model,
           memory: memoryContext,
           documents: docContext,
+          workspaceContext: workspaceContext ?? null,
         }),
       });
 

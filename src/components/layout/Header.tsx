@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Plus, Bell, ChevronRight, FileText, MessageSquare, Brain, LayoutGrid } from 'lucide-react';
+import { Search, Plus, Bell, ChevronRight, FileText, MessageSquare, Brain, LayoutGrid, CheckCircle2, Activity } from 'lucide-react';
 import type { ActiveView } from '../../types';
 
 interface HeaderProps {
@@ -17,6 +17,8 @@ const VIEW_LABELS: Record<ActiveView, { label: string; icon: React.ReactNode }> 
   document: { label: 'Documents', icon: <FileText size={13} /> },
   memory: { label: 'Memory', icon: <Brain size={13} /> },
   files: { label: 'Files', icon: <LayoutGrid size={13} /> },
+  tasks: { label: 'Tasks', icon: <CheckCircle2 size={13} /> },
+  activity: { label: 'Activity', icon: <Activity size={13} /> },
 };
 
 export function Header({ activeView, workspaceName, workspaceIcon, onViewChange, onNewItem, savedStatus, onOpenCommandPalette }: HeaderProps) {

@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { MessageSquare, FileText, Brain, Layers3, ChevronDown } from 'lucide-react';
+import { MessageSquare, FileText, Brain, Layers3, ChevronDown, CheckCircle2, Activity } from 'lucide-react';
 import { Sidebar } from './components/layout/Sidebar';
 import { NetworkStatusBar } from './components/layout/NetworkStatusBar';
 import { HomeCanvas } from './components/home/HomeCanvas';
 import { FloatingWindowShell } from './components/windows/FloatingWindowShell';
 import { ChatWindowContent } from './components/windows/ChatWindowContent';
 import { DocWindowContent } from './components/windows/DocWindowContent';
+import { TasksWindowContent } from './components/windows/TasksWindowContent';
+import { ActivityWindowContent } from './components/windows/ActivityWindowContent';
 import { MemorySection } from './components/memory/MemorySection';
 import { OnboardingTour } from './components/onboarding/OnboardingTour';
 import CommandPalette from './components/search/CommandPalette';
@@ -27,9 +29,14 @@ import { useMultiplayerCursors } from './hooks/useMultiplayerCursors';
 import { useSharing } from './hooks/useSharing';
 import { useCanvasObjects } from './hooks/useCanvasObjects';
 import { useCanvasLayers } from './hooks/useCanvasLayers';
+import { useTasks } from './hooks/useTasks';
+import { useActivity } from './hooks/useActivity';
+import { useWorkspaceContext } from './hooks/useWorkspaceContext';
 import type { CanvasLayer } from './hooks/useCanvasLayers';
 import { CursorOverlay } from './components/cursors/CursorOverlay';
-import type { Document, ChatSession, MemoryFact, CanvasGroup, CanvasObject, FloatingWindow } from './types';
+import type { Document, ChatSession, MemoryFact, CanvasGroup, CanvasObject, FloatingWindow, Task, ActivityEvent } from './types';
+import type { WorkspaceMember } from './hooks/useSharing';
+import type { CreateTaskInput } from './hooks/useTasks';
 import bg1 from '../images/download-21.jpg';
 import bg2 from '../images/download-22.jpg';
 import bg3 from '../images/download-24.jpg';
@@ -122,6 +129,28 @@ export default function App() {
     deleteGroup: deleteCanvasGroup,
   } = useCanvasObjects(activeWorkspaceId || null, user?.id, 'base');
 
+  const {
+    tasks,
+    openTasks,
+    createTask,
+    updateTask,
+    toggleTaskStatus,
+    deleteTask,
+  } = useTasks(activeWorkspaceId || null, user?.id);
+
+  const { events: activityEvents, loading: activityLoading, logEvent } = useActivity(
+    activeWorkspaceId || null,
+    user?.id,
+  );
+
+  const { buildSnapshot: buildWorkspaceContext } = useWorkspaceContext({
+    workspaceName: activeWorkspace?.name || 'Workspace',
+    documents,
+    memoryFacts: facts,
+    tasks,
+    canvasObjects,
+  });
+
   const visibleCanvasObjects = canvasObjects;
   const visibleGroupIds = new Set(visibleCanvasObjects.map(obj => obj.group_id).filter(Boolean));
   const visibleCanvasGroups = canvasGroups.filter(group => visibleGroupIds.has(group.id));
@@ -184,6 +213,73 @@ export default function App() {
     openWindow('memory', { title: 'Memory', canvasId: activeLayerId });
   }, [windows, openWindow, focusWindow, minimizeWindow, activeLayerId]);
 
+  const handleOpenTasks = useCallback(() => {
+    const existing = windows.find(w => w.type === 'tasks');
+    if (existing) {
+      focusWindow(existing.id);
+      if (existing.minimized) minimizeWindow(existing.id);
+      return;
+    }
+    openWindow('tasks', { title: 'Tasks', canvasId: activeLayerId });
+  }, [windows, openWindow, focusWindow, minimizeWindow, activeLayerId]);
+
+  const handleOpenActivity = useCallback(() => {
+    const existing = windows.find(w => w.type === 'activity');
+    if (existing) {
+      focusWindow(existing.id);
+      if (existing.minimized) minimizeWindow(existing.id);
+      return;
+    }
+    openWindow('activity', { title: 'Activity', canvasId: activeLayerId });
+  }, [windows, openWindow, focusWindow, minimizeWindow, activeLayerId]);
+
+  const handleCreateTask = useCallback(async (input: CreateTaskInput) => {
+    const task = await createTask(input);
+    if (task) {
+      logEvent({
+        event_type: 'task_created',
+        entity_type: 'task',
+        entity_id: task.id,
+        title: `Task created: ${task.title}`,
+      });
+    }
+    return task;
+  }, [createTask, logEvent]);
+
+  const handleUpdateTask = useCallback(async (id: string, updates: Partial<Task>) => {
+    const result = await updateTask(id, updates);
+    if (result && updates.status === 'done') {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        logEvent({
+          event_type: 'task_completed',
+          entity_type: 'task',
+          entity_id: id,
+          title: `Task completed: ${task.title}`,
+        });
+      }
+    }
+    return result;
+  }, [updateTask, tasks, logEvent]);
+
+  const handleToggleTaskStatus = useCallback(async (task: Task) => {
+    const willComplete = task.status !== 'done';
+    const result = await toggleTaskStatus(task);
+    if (willComplete) {
+      logEvent({
+        event_type: 'task_completed',
+        entity_type: 'task',
+        entity_id: task.id,
+        title: `Task completed: ${task.title}`,
+      });
+    }
+    return result;
+  }, [toggleTaskStatus, logEvent]);
+
+  const handleDeleteTask = useCallback(async (id: string) => {
+    return deleteTask(id);
+  }, [deleteTask]);
+
   const handleDocumentOpen = useCallback((doc: Document) => {
     openWindow('document', { title: doc.title, documentId: doc.id, canvasId: activeLayerId });
   }, [openWindow, activeLayerId]);
@@ -192,6 +288,49 @@ export default function App() {
     setActiveSession(session);
     openWindow('chat', { title: session.title, sessionId: session.id, canvasId: activeLayerId });
   }, [setActiveSession, openWindow, activeLayerId]);
+
+  const [useWorkspaceCtx, setUseWorkspaceCtx] = useState(true);
+  const lastExtractedMessageRef = useRef<string | null>(null);
+
+  // When an assistant message finishes streaming, scan for `TASK: ...` lines
+  // emitted by the model and materialize them as real tasks in the workspace.
+  useEffect(() => {
+    if (streaming) return;
+    if (!activeWorkspaceId) return;
+    const lastAssistant = [...messages].reverse().find(m => m.role === 'assistant' && m.content);
+    if (!lastAssistant) return;
+    if (lastExtractedMessageRef.current === lastAssistant.id) return;
+    lastExtractedMessageRef.current = lastAssistant.id;
+
+    const lines = lastAssistant.content.split('\n');
+    const taskTitles: string[] = [];
+    for (const line of lines) {
+      const match = line.match(/^\s*(?:[-*]\s*)?TASK:\s*(.+?)\s*$/i);
+      if (match && match[1]) {
+        const title = match[1].replace(/^\*\*|\*\*$/g, '').trim();
+        if (title.length > 0 && title.length < 200) taskTitles.push(title);
+      }
+    }
+
+    if (taskTitles.length === 0) return;
+    taskTitles.slice(0, 10).forEach(title => {
+      handleCreateTask({
+        title,
+        source_type: 'ai',
+        source_id: activeSession?.id ?? null,
+      });
+    });
+  }, [streaming, messages, activeWorkspaceId, activeSession, handleCreateTask]);
+
+  const wrappedSendMessage = useCallback(async (
+    content: string,
+    model: string,
+    memFacts?: MemoryFact[],
+    docs?: Document[],
+  ) => {
+    const snapshot = useWorkspaceCtx ? buildWorkspaceContext() : null;
+    await sendMessage(content, model, memFacts, docs, snapshot);
+  }, [sendMessage, useWorkspaceCtx, buildWorkspaceContext]);
 
   const handleHomeSendMessage = useCallback(async (
     content: string,
@@ -203,10 +342,10 @@ export default function App() {
     if (session) {
       openWindow('chat', { title: content.slice(0, 30) || 'New Chat', sessionId: session.id, canvasId: activeLayerId });
       setTimeout(() => {
-        sendMessage(content, model, memFacts, docs);
+        wrappedSendMessage(content, model, memFacts, docs);
       }, 100);
     }
-  }, [createSession, openWindow, sendMessage, activeLayerId]);
+  }, [createSession, openWindow, wrappedSendMessage, activeLayerId]);
 
   const handleCreateWorkspace = useCallback(() => {
     setCreateWorkspaceDialogOpen(true);
@@ -447,6 +586,9 @@ export default function App() {
         onDocumentOpen={handleDocumentOpen}
         onSessionOpen={handleSessionOpen}
         onOpenMemory={handleOpenMemory}
+        onOpenTasks={handleOpenTasks}
+        onOpenActivity={handleOpenActivity}
+        openTaskCount={openTasks.length}
         recents={recents}
         sessions={sessions}
         floatingWindows={windows}
@@ -488,9 +630,18 @@ export default function App() {
                 messages={messages}
                 streaming={streaming}
                 workspaceName={activeWorkspace?.name || 'Personal'}
+                workspaceId={activeWorkspaceId || ''}
+                userId={user.id}
+                userEmail={user.email || ''}
                 canvasObjects={visibleCanvasObjects}
                 canvasGroups={visibleCanvasGroups}
                 windows={activeWindows}
+                tasks={tasks}
+                members={members}
+                activityEvents={activityEvents}
+                activityLoading={activityLoading}
+                useWorkspaceCtx={useWorkspaceCtx}
+                onToggleWorkspaceCtx={() => setUseWorkspaceCtx(v => !v)}
                 onHomeSendMessage={handleHomeSendMessage}
                 onNewDocument={handleNewDocument}
                 onNewChat={handleNewChat}
@@ -499,7 +650,7 @@ export default function App() {
                 onUpdateWindow={updateWindow}
                 onMinimizeWindow={minimizeWindow}
                 onShareWindow={handleShareWindow}
-                onSendMessage={sendMessage}
+                onSendMessage={wrappedSendMessage}
                 onSetActiveSession={setActiveSession}
                 onDeleteDocument={deleteDocument}
                 onSaveDocument={saveDocument}
@@ -508,6 +659,15 @@ export default function App() {
                 onAddFact={addFact}
                 onUpdateFact={updateFact}
                 onDeleteFact={deleteFact}
+                onCreateTask={handleCreateTask}
+                onUpdateTask={handleUpdateTask}
+                onToggleTaskStatus={handleToggleTaskStatus}
+                onDeleteTask={handleDeleteTask}
+                onCommentCreated={(docTitle) => logEvent({
+                  event_type: 'comment_created',
+                  entity_type: 'document',
+                  title: docTitle ? `New comment on ${docTitle}` : 'New document comment',
+                })}
               />
             </div>
 
@@ -568,7 +728,11 @@ export default function App() {
                       transition: 'all var(--transition-fast)',
                     }}
                   >
-                    {win.type === 'chat' ? <MessageSquare size={12} /> : win.type === 'memory' ? <Brain size={12} /> : <FileText size={12} />}
+                    {win.type === 'chat' ? <MessageSquare size={12} />
+                      : win.type === 'memory' ? <Brain size={12} />
+                      : win.type === 'tasks' ? <CheckCircle2 size={12} />
+                      : win.type === 'activity' ? <Activity size={12} />
+                      : <FileText size={12} />}
                     <span style={{ maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {win.title}
                     </span>
@@ -589,9 +753,17 @@ export default function App() {
         documents={documents}
         sessions={sessions}
         facts={facts}
+        tasks={tasks}
         onDocumentOpen={handleDocumentOpen}
         onSessionOpen={handleSessionOpen}
-        onViewChange={() => {}}
+        onTaskOpen={() => handleOpenTasks()}
+        onViewChange={(view) => {
+          if (view === 'tasks') handleOpenTasks();
+          else if (view === 'activity') handleOpenActivity();
+          else if (view === 'memory') handleOpenMemory();
+          else if (view === 'chat') handleNewChat();
+          else if (view === 'document') handleNewDocument();
+        }}
       />
 
       <ShareDialog
@@ -690,9 +862,18 @@ function CanvasLayerScene({
   messages,
   streaming,
   workspaceName,
+  workspaceId,
+  userId,
+  userEmail,
   canvasObjects,
   canvasGroups,
   windows,
+  tasks,
+  members,
+  activityEvents,
+  activityLoading,
+  useWorkspaceCtx,
+  onToggleWorkspaceCtx,
   onHomeSendMessage,
   onNewDocument,
   onNewChat,
@@ -710,6 +891,11 @@ function CanvasLayerScene({
   onAddFact,
   onUpdateFact,
   onDeleteFact,
+  onCreateTask,
+  onUpdateTask,
+  onToggleTaskStatus,
+  onDeleteTask,
+  onCommentCreated,
 }: {
   documents: Document[];
   facts: MemoryFact[];
@@ -719,9 +905,18 @@ function CanvasLayerScene({
   messages: Array<{ id: string; role: 'user' | 'assistant'; content: string }>;
   streaming: boolean;
   workspaceName: string;
+  workspaceId: string;
+  userId: string;
+  userEmail: string;
   canvasObjects: CanvasObject[];
   canvasGroups: CanvasGroup[];
   windows: FloatingWindow[];
+  tasks: Task[];
+  members: WorkspaceMember[];
+  activityEvents: ActivityEvent[];
+  activityLoading: boolean;
+  useWorkspaceCtx: boolean;
+  onToggleWorkspaceCtx: () => void;
   onHomeSendMessage: (content: string, model: string, facts?: MemoryFact[], docs?: Document[]) => void;
   onNewDocument: () => void;
   onNewChat: () => void;
@@ -739,6 +934,11 @@ function CanvasLayerScene({
   onAddFact: (fact: string, category: string) => void;
   onUpdateFact: (id: string, fact: string, category: string) => void;
   onDeleteFact: (id: string) => void;
+  onCreateTask: (input: CreateTaskInput) => void;
+  onUpdateTask: (id: string, updates: Partial<Task>) => void;
+  onToggleTaskStatus: (task: Task) => void;
+  onDeleteTask: (id: string) => void;
+  onCommentCreated: (docTitle?: string) => void;
 }) {
   return (
     <>
@@ -766,18 +966,42 @@ function CanvasLayerScene({
               titleIcon={<MessageSquare size={13} />}
               breadcrumb={workspaceName}
             >
-              <ChatWindowContent
-                messages={winSession && activeSession?.id === win.sessionId ? (messages as never[]) : []}
-                streaming={activeSession?.id === win.sessionId ? streaming : false}
-                memoryFacts={facts}
-                documents={documents}
-                canvasGroups={canvasGroups}
-                canvasObjects={canvasObjects}
-                onSendMessage={(content, model, mf, docs) => {
-                  if (winSession && activeSession?.id !== win.sessionId) onSetActiveSession(winSession);
-                  onSendMessage(content, model, mf, docs);
-                }}
-              />
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '6px 10px', borderBottom: '1px solid var(--border-subtle)',
+                  background: 'var(--canvas-elevated)', fontSize: '10px',
+                  color: 'var(--text-muted)', flexShrink: 0,
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={useWorkspaceCtx}
+                      onChange={onToggleWorkspaceCtx}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    Use workspace knowledge
+                  </label>
+                  <span style={{ color: 'var(--text-muted)' }}>·</span>
+                  <span title="The AI can see open tasks, recent documents, memory, and canvas notes">
+                    {useWorkspaceCtx ? `${documents.length} docs · ${facts.length} facts · ${tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length} tasks` : 'Context off'}
+                  </span>
+                </div>
+                <div style={{ flex: 1, minHeight: 0 }}>
+                  <ChatWindowContent
+                    messages={winSession && activeSession?.id === win.sessionId ? (messages as never[]) : []}
+                    streaming={activeSession?.id === win.sessionId ? streaming : false}
+                    memoryFacts={facts}
+                    documents={documents}
+                    canvasGroups={canvasGroups}
+                    canvasObjects={canvasObjects}
+                    onSendMessage={(content, model, mf, docs) => {
+                      if (winSession && activeSession?.id !== win.sessionId) onSetActiveSession(winSession);
+                      onSendMessage(content, model, mf, docs);
+                    }}
+                  />
+                </div>
+              </div>
             </FloatingWindowShell>
           );
         }
@@ -799,6 +1023,9 @@ function CanvasLayerScene({
             >
               <DocWindowContent
                 document={doc}
+                workspaceId={workspaceId}
+                userId={userId}
+                currentUserEmail={userEmail}
                 onSave={onSaveDocument}
                 onAutoSave={onAutoSaveDocument}
                 onToggleFavorite={onToggleFavorite}
@@ -809,6 +1036,7 @@ function CanvasLayerScene({
                   onCloseWindow(win.id);
                 }}
                 onTitleChange={(title) => onUpdateWindow(win.id, { title })}
+                onCommentCreated={onCommentCreated}
               />
             </FloatingWindowShell>
           );
@@ -833,6 +1061,53 @@ function CanvasLayerScene({
                 onAdd={onAddFact}
                 onUpdate={onUpdateFact}
                 onDelete={onDeleteFact}
+              />
+            </FloatingWindowShell>
+          );
+        }
+
+        if (win.type === 'tasks') {
+          return (
+            <FloatingWindowShell
+              key={win.id}
+              window={win}
+              onClose={onCloseWindow}
+              onFocus={onFocusWindow}
+              onUpdate={onUpdateWindow}
+              onMinimize={onMinimizeWindow}
+              onShare={() => onShareWindow(win.title)}
+              titleIcon={<CheckCircle2 size={13} />}
+              breadcrumb={workspaceName}
+            >
+              <TasksWindowContent
+                tasks={tasks}
+                members={members}
+                currentUserEmail={userEmail}
+                onCreateTask={onCreateTask}
+                onUpdateTask={onUpdateTask}
+                onToggleStatus={onToggleTaskStatus}
+                onDeleteTask={onDeleteTask}
+              />
+            </FloatingWindowShell>
+          );
+        }
+
+        if (win.type === 'activity') {
+          return (
+            <FloatingWindowShell
+              key={win.id}
+              window={win}
+              onClose={onCloseWindow}
+              onFocus={onFocusWindow}
+              onUpdate={onUpdateWindow}
+              onMinimize={onMinimizeWindow}
+              onShare={() => onShareWindow(win.title)}
+              titleIcon={<Activity size={13} />}
+              breadcrumb={workspaceName}
+            >
+              <ActivityWindowContent
+                events={activityEvents}
+                loading={activityLoading}
               />
             </FloatingWindowShell>
           );
