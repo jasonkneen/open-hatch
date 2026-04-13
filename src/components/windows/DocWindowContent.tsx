@@ -1,13 +1,18 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Bold, Italic, List, ListOrdered, Code, Heading1, Heading2, Quote, Star, Trash2, Image as ImageIcon, Pencil } from 'lucide-react';
+import { Bold, Italic, List, ListOrdered, Code, Heading1, Heading2, Quote, Star, Trash2, Image as ImageIcon, Pencil, MessageCircle } from 'lucide-react';
 import type { Document } from '../../types';
+import { DocumentCommentsPanel } from '../editor/DocumentCommentsPanel';
 
 interface DocWindowContentProps {
   document: Document;
+  workspaceId?: string;
+  userId?: string;
+  currentUserEmail?: string;
   onAutoSave: (id: string, updates: { title?: string; content?: string }) => void;
   onToggleFavorite: (id: string, current: boolean) => void;
   onDelete: (id: string) => void;
   onTitleChange: (title: string) => void;
+  onCommentCreated?: (docTitle?: string) => void;
 }
 
 type FormatAction = 'bold' | 'italic' | 'h1' | 'h2' | 'ul' | 'ol' | 'code' | 'quote';
@@ -101,12 +106,17 @@ const TOOLBAR: Array<{ action?: FormatAction; icon?: React.ReactNode; label?: st
 
 export function DocWindowContent({
   document: doc,
+  workspaceId,
+  userId,
+  currentUserEmail,
   onAutoSave,
   onToggleFavorite,
   onDelete,
   onTitleChange,
+  onCommentCreated,
 }: DocWindowContentProps) {
   const [title, setTitle] = useState(doc.title);
+  const [commentsOpen, setCommentsOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
@@ -312,6 +322,8 @@ export function DocWindowContent({
     }
   };
 
+  const canShowComments = Boolean(workspaceId && currentUserEmail);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <div style={{
@@ -365,6 +377,23 @@ export function DocWindowContent({
           style={{ display: 'none' }}
         />
         <div style={{ flex: 1 }} />
+        {canShowComments && (
+          <button
+            onClick={() => setCommentsOpen(v => !v)}
+            title={commentsOpen ? 'Hide comments' : 'Show comments'}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '26px', height: '26px',
+              background: commentsOpen ? 'var(--accent-subtle)' : 'transparent',
+              border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              color: commentsOpen ? 'var(--accent)' : 'var(--text-muted)',
+            }}
+            onMouseEnter={e => { if (!commentsOpen) e.currentTarget.style.color = 'var(--accent)'; }}
+            onMouseLeave={e => { if (!commentsOpen) e.currentTarget.style.color = 'var(--text-muted)'; }}
+          >
+            <MessageCircle size={12} />
+          </button>
+        )}
         <button
           onClick={() => onToggleFavorite(doc.id, doc.is_favorite)}
           title={doc.is_favorite ? 'Unfavorite' : 'Favorite'}
@@ -393,33 +422,46 @@ export function DocWindowContent({
         </button>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-        <input
-          type="text"
-          value={title}
-          onChange={handleTitleChange}
-          placeholder="Untitled"
-          style={{
-            background: 'none', border: 'none', outline: 'none',
-            fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)',
-            width: '100%', marginBottom: '12px', letterSpacing: '-0.02em',
-            lineHeight: 1.2, fontFamily: 'inherit',
-          }}
-        />
-        <div
-          ref={contentRef}
-          contentEditable
-          suppressContentEditableWarning
-          className="doc-editor"
-          onInput={handleContentInput}
-          onPaste={handlePaste}
-          onDrop={handleDrop}
-          data-placeholder="Start writing..."
-          style={{
-            minHeight: '200px', outline: 'none', fontSize: '13px',
-            lineHeight: '1.7', color: 'var(--text-primary)',
-          }}
-        />
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', minWidth: 0 }}>
+          <input
+            type="text"
+            value={title}
+            onChange={handleTitleChange}
+            placeholder="Untitled"
+            style={{
+              background: 'none', border: 'none', outline: 'none',
+              fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-primary)',
+              width: '100%', marginBottom: '12px', letterSpacing: '-0.02em',
+              lineHeight: 1.2, fontFamily: 'inherit',
+            }}
+          />
+          <div
+            ref={contentRef}
+            contentEditable
+            suppressContentEditableWarning
+            className="doc-editor"
+            onInput={handleContentInput}
+            onPaste={handlePaste}
+            onDrop={handleDrop}
+            data-placeholder="Start writing..."
+            style={{
+              minHeight: '200px', outline: 'none', fontSize: '13px',
+              lineHeight: '1.7', color: 'var(--text-primary)',
+            }}
+          />
+        </div>
+        {commentsOpen && canShowComments && workspaceId && currentUserEmail && (
+          <DocumentCommentsPanel
+            documentId={doc.id}
+            workspaceId={workspaceId}
+            userId={userId}
+            currentUserEmail={currentUserEmail}
+            documentTitle={doc.title}
+            onClose={() => setCommentsOpen(false)}
+            onCommentCreated={onCommentCreated}
+          />
+        )}
       </div>
     </div>
   );

@@ -6,13 +6,91 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
+interface WorkspaceContextSnapshot {
+  workspace?: string;
+  memory?: string | null;
+  documents?: string | null;
+  tasks?: string | null;
+  canvas?: string | null;
+}
+
+function buildSystemPrompt(
+  memory: string | null | undefined,
+  documents: string | null | undefined,
+  workspaceContext: WorkspaceContextSnapshot | null | undefined,
+): string {
+  const sections: string[] = [];
+
+  sections.push(
+    "You are Hatch AI, a collaborative workspace assistant. You help teams think, write, and get work done inside a shared workspace that contains documents, chats, memory, tasks, files, and a shared canvas.",
+    "",
+    "Guidelines:",
+    "- Be concise, warm, and thoughtful. Prefer markdown for structure.",
+    "- When you reference workspace content, quote the title so teammates can find it.",
+    "- When the user asks you to extract or create tasks, emit them on their own lines using this exact format so the app can parse them: `TASK: <title>` (one task per line).",
+    "- If you do not know something from the provided context, say so rather than inventing.",
+    "- You are one of potentially many people in this workspace; speak in a way that is useful to the whole team, not just a single user.",
+  );
+
+  if (workspaceContext) {
+    const wsBlocks: string[] = [];
+    if (workspaceContext.workspace) {
+      wsBlocks.push(`Workspace name: ${workspaceContext.workspace}`);
+    }
+    if (workspaceContext.memory) {
+      wsBlocks.push(`# Team memory\n${workspaceContext.memory}`);
+    }
+    if (workspaceContext.documents) {
+      wsBlocks.push(`# Key documents\n${workspaceContext.documents}`);
+    }
+    if (workspaceContext.tasks) {
+      wsBlocks.push(`# Open tasks\n${workspaceContext.tasks}`);
+    }
+    if (workspaceContext.canvas) {
+      wsBlocks.push(`# Canvas notes\n${workspaceContext.canvas}`);
+    }
+    if (wsBlocks.length > 0) {
+      sections.push(
+        "",
+        "<workspace_context>",
+        "The following is a snapshot of the shared workspace you are assisting in. Use it to answer grounded questions, but do not dump it verbatim unless asked.",
+        "",
+        wsBlocks.join("\n\n"),
+        "</workspace_context>",
+      );
+    }
+  }
+
+  if (memory) {
+    sections.push(
+      "",
+      "<user_memory>",
+      "Persistent facts the user has saved. Use this to personalize responses.",
+      memory,
+      "</user_memory>",
+    );
+  }
+
+  if (documents) {
+    sections.push(
+      "",
+      "<linked_documents>",
+      "The user has explicitly linked these documents for this message. Treat them as high-priority context.",
+      documents,
+      "</linked_documents>",
+    );
+  }
+
+  return sections.join("\n");
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
   try {
-    const { messages, model, memory, documents } = await req.json();
+    const { messages, model, memory, documents, workspaceContext } = await req.json();
 
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
 
@@ -33,15 +111,7 @@ Deno.serve(async (req: Request) => {
       ? "claude-haiku-4-5"
       : "claude-opus-4-5";
 
-    let systemPrompt = "You are Hatch AI, an intelligent personal productivity assistant. Be concise, helpful, and thoughtful. Format responses clearly using markdown when appropriate.";
-
-    if (memory) {
-      systemPrompt += `\n\n<user_memory>\nThe following are persistent facts the user has saved about themselves. Use this context to personalize your responses:\n${memory}\n</user_memory>`;
-    }
-
-    if (documents) {
-      systemPrompt += `\n\n<linked_documents>\nThe user has linked the following documents for context:\n${documents}\n</linked_documents>`;
-    }
+    const systemPrompt = buildSystemPrompt(memory, documents, workspaceContext);
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
