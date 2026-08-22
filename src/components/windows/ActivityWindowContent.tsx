@@ -40,6 +40,13 @@ import {
   hasActivityMetadata,
 } from '../../lib/activityEntry';
 import {
+  ACTIVITY_FAMILY,
+  ActivityFilter,
+  activityFamilyFor,
+  familyDotColor,
+  familyTagClass,
+} from '../../lib/activityFamily';
+import {
   activityRowOpacity,
   hasHiddenActivity,
   shouldAnimateEntry,
@@ -118,34 +125,8 @@ function formatFullDate(iso: string): string {
 // families — the honest mapping.
 // ---------------------------------------------------------------------------
 
-type ActivityFilter =
-  | 'all' | 'docs' | 'tasks' | 'messages' | 'comments' | 'agents' | 'memory' | 'people' | 'canvas';
-
-const ACTIVITY_FAMILY: Record<ActivityEventType, Exclude<ActivityFilter, 'all'>> = {
-  document_created: 'docs',
-  document_updated: 'docs',
-  document_deleted: 'docs',
-  task_created: 'tasks',
-  task_completed: 'tasks',
-  task_updated: 'tasks',
-  comment_created: 'comments',
-  chat_created: 'messages',
-  message_sent: 'messages',
-  memory_added: 'memory',
-  member_joined: 'people',
-  canvas_updated: 'canvas',
-  agent_connected: 'agents',
-  agent_disconnected: 'agents',
-  // A credentialed provider call an agent made through the server. Filed under
-  // Agents because that is what the reader is auditing — which agent spent a
-  // provider credential, on what, and what came back.
-  provider_call: 'agents',
-  // Filed under People for both lanes. The reader auditing a join link is asking
-  // "who got into this workspace, and how" — the answer belongs beside
-  // member_joined whether the joiner was a person or an agent.
-  join_link_created: 'people',
-  join_link_redeemed: 'people',
-};
+// The ActivityFilter type and ACTIVITY_FAMILY mapping live in
+// src/lib/activityFamily.ts, imported above.
 
 // Remembered per workspace. The tab list is also filtered down to families that
 // actually appear in the log, so `activeFilter` below still has the last word:
@@ -178,44 +159,6 @@ function countByFamily(events: ActivityEvent[]): Record<ActivityFilter, number> 
     if (family) counts[family] += 1;
   }
   return counts;
-}
-
-// Family -> CSS tag class (see the .activity-family-* block in index.css). A
-// solid-block family tag on each row is the trajectory screen's visual grammar:
-// a scan of the feed should land on the kind of work, not the clock next to it.
-function familyTagClass(family: Exclude<ActivityFilter, 'all'> | 'all' | undefined): string {
-  switch (family) {
-    case 'docs': return 'activity-family-docs';
-    case 'tasks': return 'activity-family-tasks';
-    case 'messages': return 'activity-family-messages';
-    case 'comments': return 'activity-family-comments';
-    case 'agents': return 'activity-family-agents';
-    case 'memory': return 'activity-family-memory';
-    case 'people': return 'activity-family-people';
-    case 'canvas': return 'activity-family-canvas';
-    default: return 'activity-family-all';
-  }
-}
-
-// The family a given event belongs to, or 'all' when its event_type is unmapped.
-function familyFor(event: Pick<ActivityEvent, 'event_type'>): Exclude<ActivityFilter, 'all'> | 'all' {
-  return ACTIVITY_FAMILY[event.event_type] ?? 'all';
-}
-
-// Background hue used for the timeline segment + dot so the strip and the tag
-// share one colour identity per family.
-function familyDotColor(family: Exclude<ActivityFilter, 'all'> | 'all' | undefined): string {
-  switch (family) {
-    case 'docs': return 'var(--primary)';
-    case 'tasks': return 'oklch(0.62 0.17 150)';
-    case 'messages': return 'oklch(0.6 0.18 265)';
-    case 'comments': return 'oklch(0.64 0.15 320)';
-    case 'agents': return 'oklch(0.6 0.18 35)';
-    case 'memory': return 'oklch(0.68 0.11 95)';
-    case 'people': return 'oklch(0.62 0.15 20)';
-    case 'canvas': return 'oklch(0.64 0.13 285)';
-    default: return 'var(--foreground)';
-  }
 }
 
 /**
@@ -381,14 +324,14 @@ function ActivityTimeline({
   return (
     <div className="trajectory-timeline">
       <div className="trajectory-timeline-labels" aria-hidden="true">
-        <span><span className="trajectory-timeline-dot" style={{ background: 'var(--primary)', width: 7, height: 7 }} /> Docs</span>
-        <span><span className="trajectory-timeline-dot" style={{ background: 'oklch(0.62 0.17 150)', width: 7, height: 7 }} /> Tasks</span>
-        <span><span className="trajectory-timeline-dot" style={{ background: 'oklch(0.6 0.18 265)', width: 7, height: 7 }} /> Messages</span>
-        <span><span className="trajectory-timeline-dot" style={{ background: 'oklch(0.6 0.18 35)', width: 7, height: 7 }} /> Agents</span>
+        <span><span className="trajectory-timeline-dot" style={{ background: familyDotColor('docs'), width: 7, height: 7 }} /> Docs</span>
+        <span><span className="trajectory-timeline-dot" style={{ background: familyDotColor('tasks'), width: 7, height: 7 }} /> Tasks</span>
+        <span><span className="trajectory-timeline-dot" style={{ background: familyDotColor('messages'), width: 7, height: 7 }} /> Messages</span>
+        <span><span className="trajectory-timeline-dot" style={{ background: familyDotColor('agents'), width: 7, height: 7 }} /> Agents</span>
       </div>
       <div className="trajectory-timeline-track" role="img" aria-label="Activity timeline">
         {events.map((event) => {
-          const family = familyFor(event);
+          const family = activityFamilyFor(event);
           const selected = event.id === selectedId;
           return (
             <button
@@ -431,8 +374,8 @@ function ActivityDetailTabs({
       </TabsList>
       <TabsContent value="summary" className="min-h-0 min-w-0 flex-1 overflow-auto p-3 text-sm">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className={cn('activity-family-tag', familyTagClass(familyFor(event)))}>
-            {familyFor(event) === 'all' ? event.event_type.replace(/_/g, ' ') : familyFor(event)}
+          <span className={cn('activity-family-tag', familyTagClass(activityFamilyFor(event)))}>
+            {activityFamilyFor(event) === 'all' ? event.event_type.replace(/_/g, ' ') : activityFamilyFor(event)}
           </span>
           <span className="text-xs text-muted-foreground">{formatFullDate(event.created_at)}</span>
         </div>
@@ -666,8 +609,8 @@ export const ActivityWindowContent = React.memo(function ActivityWindowContent({
                       <span className="min-w-0 flex-1 truncate">{activityEntryLabel(event)}</span>
                       {/* Trajectory-style family tag: a coloured block naming the
                           kind of work, the same grammar the timeline strip uses. */}
-                      <span className={cn('activity-family-tag shrink-0', familyTagClass(familyFor(event)))}>
-                        {familyFor(event) === 'all' ? event.event_type.replace(/_/g, ' ') : familyFor(event)}
+                      <span className={cn('activity-family-tag shrink-0', familyTagClass(activityFamilyFor(event)))}>
+                        {activityFamilyFor(event) === 'all' ? event.event_type.replace(/_/g, ' ') : activityFamilyFor(event)}
                       </span>
                     </button>
                     </div>
