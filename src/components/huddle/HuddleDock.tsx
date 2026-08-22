@@ -398,7 +398,14 @@ export function HuddleDock() {
           talking. Avatars now clip instead of wrapping. */}
       {(participants.length > 0 || connection) && (
         <div className="flex h-9 shrink-0 items-center gap-2 border-b border-border px-3">
-          <div className="flex min-w-0 shrink items-center gap-1 overflow-hidden">
+          {/* The clip box is inset from the avatars, not flush with them. A
+              selection ring is painted OUTSIDE the 24px circle, so a box sized
+              to the circles clipped the ring flat top and bottom (and on the
+              first avatar's left edge). Padding gives the ring somewhere to
+              live and the negative margin gives the padding back, so the row's
+              layout is unchanged. The right edge stays flush — that side is
+              where overflow is supposed to bite. */}
+          <div className="-my-1 -ml-1 flex min-w-0 shrink items-center gap-1 overflow-hidden py-1 pl-1">
             {participants.map(participant => (
               <span
                 key={participant.id}
