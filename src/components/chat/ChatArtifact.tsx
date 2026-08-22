@@ -21,17 +21,44 @@ export function extractHtmlArtifact(content: string): HtmlArtifact | null {
     };
   }
 
-  const htmlStart = content.search(/<!doctype html|<html[\s>]/i);
-  if (htmlStart >= 0) {
+  // A code span is TEXT, not markup. This searched the raw message, so a reply
+  // that merely MENTIONED `<html>` — exactly what a code review of a renderer,
+  // a theme helper or a service worker does — had everything from that word to
+  // the end of the message sliced off and re-rendered inside an iframe. The
+  // reader saw a white box of raw markdown where the rest of the answer should
+  // have been. Blank code out first, preserving offsets so the indices below
+  // still address the original string.
+  const masked = maskCode(content);
+  const match = /<!doctype html|<html[\s>]/i.exec(masked);
+  if (match) {
+    const htmlStart = match.index;
     const html = content.slice(htmlStart).trim();
-    return {
-      title: titleFromHtml(html),
-      html,
-      remainingText: content.slice(0, htmlStart).trim(),
-    };
+    // The fenced branch already refuses to promote a snippet; the bare branch
+    // had no bar at all. A real document is substantial AND self-evidently a
+    // document — it either opens with a doctype or closes its own <html>.
+    const looksLikeDocument = /^<!doctype html/i.test(html) || /<\/html\s*>/i.test(html);
+    if (html.length >= 200 && looksLikeDocument) {
+      return {
+        title: titleFromHtml(html),
+        html,
+        remainingText: content.slice(0, htmlStart).trim(),
+      };
+    }
   }
 
   return null;
+}
+
+/** Replaces fenced blocks and inline spans with spaces, keeping every offset. */
+function maskCode(content: string): string {
+  return content
+    .replace(/```[\s\S]*?```/g, blank)
+    .replace(/``[\s\S]*?``/g, blank)
+    .replace(/`[^`\n]*`/g, blank);
+}
+
+function blank(match: string): string {
+  return match.replace(/[^\n]/g, ' ');
 }
 
 function titleFromHtml(html: string) {
