@@ -404,13 +404,42 @@ const codexRuntime: WireframeScene = {
   ]
 };
 
+/**
+ * Browsing listings, then hiring one — the marketplace.
+ *
+ * The point the animation has to carry is what does NOT travel. The listing on
+ * the left keeps its body (the prompt, the skills, the folder access) inside
+ * the host's panel; only the short capability bars cross to the workspace on
+ * the right, and what lands there is a roster entry, not a copy.
+ */
+const agentMarketplace: WireframeScene = {
+  id: 'agent-marketplace',
+  alt: 'A list of community agent listings; one is chosen, and only its capability lines cross into your workspace, arriving as a single roster entry.',
+  shapes: [
+    // The marketplace, and three listings to choose between.
+    { kind: 'panel', x: 6, y: 10, w: 62, h: 80, tone: 'muted', motion: 'none' },
+    { kind: 'row', x: 14, y: 20, w: 46, h: 11, tone: 'base', motion: 'fade', delay: 0.15 },
+    { kind: 'row', x: 14, y: 36, w: 46, h: 11, tone: 'accent', motion: 'pulse', delay: 0.35 },
+    { kind: 'row', x: 14, y: 52, w: 46, h: 11, tone: 'base', motion: 'fade', delay: 0.5 },
+    // The definition stays put — it never leaves the listing's own panel.
+    { kind: 'bar', x: 14, y: 70, w: 30, h: 5, tone: 'muted', motion: 'fade', delay: 0.65 },
+    // Your workspace.
+    { kind: 'panel', x: 78, y: 10, w: 76, h: 80, tone: 'base', motion: 'slide-left', delay: 0.85 },
+    // Capabilities only, which is all a hirer is shown.
+    { kind: 'bar', x: 88, y: 24, w: 46, h: 6, tone: 'muted', motion: 'fade', delay: 1.1 },
+    { kind: 'bar', x: 88, y: 36, w: 34, h: 6, tone: 'muted', motion: 'fade', delay: 1.25 },
+    // The hire itself: one roster entry, landing last and loud.
+    { kind: 'chip', x: 88, y: 56, w: 30, h: 14, tone: 'accent', motion: 'pop', delay: 1.5 },
+  ],
+};
+
 export const WIREFRAME_SCENES = {
   // In the gallery today.
-  socialSignInGuard, dmPrivacy, automationRule, codexRuntime, connectionResources, stewardedResourceWork, auditLog, typingDots, stopReason, toolLoop,
+  agentMarketplace, socialSignInGuard, automationRule, codexRuntime, connectionResources, stewardedResourceWork, auditLog, typingDots, stopReason, toolLoop,
   // Retired from the gallery when their feature stopped being news. Kept as
   // authored vocabulary — a scene costs nothing and is the reference for how
   // this format is meant to read.
-  splitView, chips, cadence, savedTemplate, preview, showDesktop
+  dmPrivacy, splitView, chips, cadence, savedTemplate, preview, showDesktop
 } as const;
 
 export type WireframeSceneName = keyof typeof WIREFRAME_SCENES;
@@ -428,6 +457,12 @@ export type WireframeSceneName = keyof typeof WIREFRAME_SCENES;
  * its scene stays in WIREFRAME_SCENES.
  */
 export const GALLERY_SLIDES: GallerySlide[] = [
+  {
+    note: 'agent-marketplace',
+    title: 'Hire an agent without handing over its definition',
+    body: 'Share a tuned agent as a template, or offer it for hire — hirers see only the capabilities you list, and the prompt, skills and folder access stay with you.',
+    scene: agentMarketplace,
+  },
   {
     note: 'connector-oauth-and-runtime-reliability',
     title: 'Permission tools with guardrails',
@@ -457,12 +492,6 @@ export const GALLERY_SLIDES: GallerySlide[] = [
     title: 'Choosing Codex now connects Codex',
     body: 'The setup choice is saved before the command is made, so a Codex agent uses the Codex CLI and your logged-in OpenAI account.',
     scene: codexRuntime,
-  },
-  {
-    note: 'private-direct-messages',
-    title: 'Direct messages are private',
-    body: 'A DM is readable only by the people in it. An admin can grant access to one conversation, and every grant is recorded.',
-    scene: dmPrivacy,
   },
 ];
 

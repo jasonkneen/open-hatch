@@ -47,6 +47,12 @@ export function AppUpdateManager({ swOnly = false, onRef, onNotificationChange }
   const [mode, setMode] = useState<'available' | 'updated'>('available');
   const [notes, setNotes] = useState<ReleaseNote[]>([]);
   const [hasUnseenNotes, setHasUnseenNotes] = useState(false);
+  // Whether this session has anything to say about updates at all. The bell's
+  // entry used to be keyed on the DIALOG being open, so it mirrored a panel
+  // already on screen and disappeared as soon as that panel was dismissed —
+  // leaving no route back to the notes. Announcing is a separate, stickier fact
+  // than "a dialog is currently showing".
+  const [announced, setAnnounced] = useState(false);
   const notesLoaded = useRef(false);
   const notesRef = useRef<ReleaseNote[]>([]);
   const lastCommit = useRef<string | null>(null);
@@ -82,13 +88,18 @@ export function AppUpdateManager({ swOnly = false, onRef, onNotificationChange }
     window.location.replace(url.href);
   }, [updateServiceWorker]);
 
+  // Re-opens the notes in whatever mode this session is in. This is what the
+  // bell's "What's new" needed and did not have.
+  const showNotes = useCallback(() => setOpen(true), []);
+
   // Expose update notification state for the notifications bell
   useEffect(() => {
-    const notif = open ? {
-      open: true,
+    const notif = announced ? {
+      open,
       mode,
       hasUnseenNotes,
       onReload: reload,
+      onShowNotes: showNotes,
     } : null;
 
     if (onRef) {
@@ -100,7 +111,7 @@ export function AppUpdateManager({ swOnly = false, onRef, onNotificationChange }
     if (onNotificationChange) {
       onNotificationChange(notif);
     }
-  }, [open, mode, hasUnseenNotes, reload, onRef, onNotificationChange]);
+  }, [announced, open, mode, hasUnseenNotes, reload, showNotes, onRef, onNotificationChange]);
 
   // A new build is live. Whether there is anything to READ about it is a
   // separate question, and conflating the two is what made this nag.
@@ -112,6 +123,7 @@ export function AppUpdateManager({ swOnly = false, onRef, onNotificationChange }
   // exists that this user has not seen; otherwise say the true and useful
   // thing, which is just "reload".
   const showAvailableToast = useCallback((hasUnseenNotes: boolean) => {
+    setAnnounced(true);
     toast('A new version of agensis is available', {
       // Stable id → sonner updates the existing toast instead of stacking a
       // second one when another deploy lands while this is still on screen.
@@ -178,6 +190,7 @@ export function AppUpdateManager({ swOnly = false, onRef, onNotificationChange }
         showAvailableToast(unseen);
       } else if (state === 'updated') {
         setMode('updated');
+        setAnnounced(true);
         setOpen(true);
         if (latestRelease) writeLastSeenRelease(latestRelease);
       } else if (latestRelease) {
@@ -192,19 +205,9 @@ export function AppUpdateManager({ swOnly = false, onRef, onNotificationChange }
     };
   }, [ensureNotes, showAvailableToast, swOnly]);
 
-  // Expose the notification state to parent via callback and ref
-  useEffect(() => {
-    if (open) {
-      onNotificationChange?.({
-        open: true,
-        mode,
-        hasUnseenNotes,
-        onReload: reload,
-      });
-    } else {
-      onNotificationChange?.(null);
-    }
-  }, [open, mode, hasUnseenNotes, reload, onNotificationChange]);
+  // (A second copy of the publisher above used to live here, still keyed on
+  // `open`. Two effects setting the same parent state meant whichever ran last
+  // won, and this one nulled the notification the instant the dialog closed.)
 
   // Nothing to render: the SW registration above is the whole job here.
   if (swOnly) return null;

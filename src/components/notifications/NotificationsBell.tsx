@@ -19,7 +19,7 @@ type NotificationItem =
   | { kind: 'approval'; id: string; handle: string; label: string; isNew: boolean; at: string }
   | { kind: 'connection'; id: string; handle: string; connected: boolean; at: string }
   | { kind: 'activity'; id: string; title: string; tone: NotificationTone; at: string }
-  | { kind: 'update'; id: string; mode: 'available' | 'updated'; hasUnseenNotes: boolean; at: string; onReload?: () => void };
+  | { kind: 'update'; id: string; mode: 'available' | 'updated'; hasUnseenNotes: boolean; at: string; onReload?: () => void; onShowNotes?: () => void };
 
 type NotificationTone = 'online' | 'offline' | 'pending' | 'info';
 
@@ -71,6 +71,9 @@ export interface UpdateNotification {
   mode: 'available' | 'updated';
   hasUnseenNotes: boolean;
   onReload: () => void;
+  /** Re-opens the release-notes dialog. Without this the bell's "What's new"
+   *  was a label with nothing behind it — see the update row below. */
+  onShowNotes?: () => void;
 }
 
 export function NotificationsBell({ workspaceId, variant = 'floating', updateNotif }: { workspaceId: string | null; variant?: 'floating' | 'inline'; updateNotif?: UpdateNotification | null }) {
@@ -119,7 +122,11 @@ export function NotificationsBell({ workspaceId, variant = 'floating', updateNot
       }));
 
     // App update notification (if available).
-    const updates: NotificationItem[] = updateNotif && updateNotif.open
+    // Gated on the notification EXISTING, not on the dialog being open. Keyed
+    // on `.open` this row was a mirror of a dialog already on screen, so it
+    // vanished the moment that dialog was dismissed — which is exactly when a
+    // notification centre should still be able to bring the notes back.
+    const updates: NotificationItem[] = updateNotif
       ? [{
         kind: 'update' as const,
         id: 'update:pending',
@@ -127,6 +134,7 @@ export function NotificationsBell({ workspaceId, variant = 'floating', updateNot
         hasUnseenNotes: updateNotif.hasUnseenNotes,
         at: new Date().toISOString(),
         onReload: updateNotif.onReload,
+        onShowNotes: updateNotif.onShowNotes,
       }]
       : [];
 
@@ -371,16 +379,35 @@ export function NotificationsBell({ workspaceId, variant = 'floating', updateNot
                           </span>
                         )}
                       </p>
-                      {item.mode === 'available' && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="w-fit text-[11px]"
-                          onClick={() => item.onReload?.()}
-                        >
-                          Reload now
-                        </Button>
-                      )}
+                      {/* The 'updated' row used to be this heading ALONE: the
+                          words "What's new" with no control under them and no
+                          handler on the row. It reads as something you click,
+                          it isn't, and the release notes had no way back once
+                          the dialog behind it was dismissed. Both modes now
+                          carry a real action. */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {item.mode === 'available' && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="w-fit text-[11px]"
+                            onClick={() => item.onReload?.()}
+                          >
+                            Reload now
+                          </Button>
+                        )}
+                        {item.onShowNotes && (item.mode === 'updated' || item.hasUnseenNotes) && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={item.mode === 'updated' ? 'default' : 'outline'}
+                            className="w-fit text-[11px]"
+                            onClick={() => item.onShowNotes?.()}
+                          >
+                            What’s new
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     <p className="leading-snug">{item.title}</p>
