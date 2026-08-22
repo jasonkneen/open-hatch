@@ -400,16 +400,43 @@ describe('confirming our own join', () => {
 });
 
 describe('leaving', () => {
-  it('posts the leave rather than waiting for the reaper', () => {
+  // Leaving is now TWO steps: the header button raises a confirm, and only the
+  // confirm posts. The dialog renders through a portal, so it is on document.body
+  // and NOT inside `container` — searching the container alone found the header
+  // button, clicked it, and asserted against a POST that was still one click away.
+  const findButton = (root: ParentNode, label: string) =>
+    Array.from(root.querySelectorAll('button')).find(b => b.textContent?.trim() === label);
+
+  it('confirms before posting the leave', () => {
     // session.leave() is what POSTs /leave for this epoch. Closing the dock
     // without it leaves presence to expire on the server's 150s clock, so the
     // roster keeps showing someone who has gone.
     const session = fakeSession(true);
     render(session);
-    const leave = Array.from(container.querySelectorAll('button')).find(b => b.textContent === 'Leave');
+
+    const leave = findButton(container, 'Leave');
     expect(leave).toBeDefined();
     act(() => { leave?.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+
+    // The click opens the confirm and must NOT have posted anything yet —
+    // leaving a call is not something a stray click should be able to do.
+    expect(session.leave).not.toHaveBeenCalled();
+
+    const confirm = findButton(document.body, 'Leave Huddle');
+    expect(confirm).toBeDefined();
+    act(() => { confirm?.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
     expect(session.leave).toHaveBeenCalledTimes(1);
+  });
+
+  it('cancelling the confirm leaves the call alone', () => {
+    const session = fakeSession(true);
+    render(session);
+
+    act(() => { findButton(container, 'Leave')?.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    const cancel = findButton(document.body, 'Cancel');
+    expect(cancel).toBeDefined();
+    act(() => { cancel?.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(session.leave).not.toHaveBeenCalled();
   });
 });
 

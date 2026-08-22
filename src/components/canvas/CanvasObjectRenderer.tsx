@@ -216,15 +216,42 @@ function AppletObject({
     sendInit();
   }, [reloadKey, sendInit]);
 
+  // Kept in a ref so the observer below is installed ONCE. Keyed on `sendInit`
+  // it was torn down and rebuilt on every render, because `sendInit` changes
+  // identity whenever the `tasks` or `agents` array does.
+  const sendInitRef = useRef(sendInit);
+  sendInitRef.current = sendInit;
+
+  // RE-INIT ON A THEME CHANGE — and only on a theme change.
+  //
+  // This fired on ANY `style` mutation of <html> and immediately re-posted the
+  // whole payload (state + the full tasks and agents arrays) to the iframe.
+  // Sidebar.tsx:601-607 writes four --workspace-viewport-* custom properties to
+  // <html> on every animation frame of a sidebar drag, so dragging the sidebar
+  // structured-cloned the entire task and agent list, per applet, per frame.
+  //
+  // The gate is a string compare of what a theme actually consists of — the two
+  // theme attributes plus <html>'s inline custom properties, minus the layout
+  // ones that are not theme at all. Reading `cssText` is a serialization of the
+  // declaration block, so unlike readAppletTheme() it forces no style recalc:
+  // a drag frame now costs one string compare instead of a getComputedStyle and
+  // a structured clone.
   useEffect(() => {
     if (typeof MutationObserver === 'undefined') return;
-    const observer = new MutationObserver(() => sendInit());
-    observer.observe(document.documentElement, {
+    const root = document.documentElement;
+    let last = themeSignature(root);
+    const observer = new MutationObserver(() => {
+      const next = themeSignature(root);
+      if (next === last) return;
+      last = next;
+      sendInitRef.current();
+    });
+    observer.observe(root, {
       attributes: true,
       attributeFilter: ['data-theme', 'data-ui-theme', 'style'],
     });
     return () => observer.disconnect();
-  }, [sendInit]);
+  }, []);
 
   useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
@@ -465,6 +492,26 @@ function injectAppletHostTheme(html: string, theme: ReturnType<typeof readApplet
 
 function sanitizeCssValue(value: string) {
   return value.replace(/[<>{};]/g, '').trim();
+}
+
+/**
+ * A cheap proxy for "the theme changed", used to gate applet re-inits.
+ *
+ * Deliberately EXCLUDES --workspace-viewport-*: those are chrome geometry
+ * written on every frame of a sidebar drag, and no applet theme token derives
+ * from them. Everything readAppletTheme() actually reads is either one of the
+ * two data-* attributes or an inline custom property, so a real theme switch
+ * always moves this string.
+ */
+export function themeSignature(root: HTMLElement): string {
+  // Whitespace is collapsed after the strip: removing a declaration leaves the
+  // separator behind, so the raw residue changes as viewport vars are added
+  // during a drag even though nothing about the theme did.
+  const inline = root.style.cssText
+    .replace(/--workspace-viewport-[a-z]+\s*:[^;]*;?/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return `${root.getAttribute('data-theme') || ''}|${root.getAttribute('data-ui-theme') || ''}|${inline}`;
 }
 
 function readAppletTheme() {

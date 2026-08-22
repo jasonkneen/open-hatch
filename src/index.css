@@ -5322,7 +5322,28 @@ select {
 /* Family tag colours. Each activity family reads as a distinct hue so a scan of
  * the feed lands on the type of work, exactly as the trajectory screen's
  * TOOL/ASSISTANT/USER tags do. Colors are picked from UI theme tokens where
- * possible and hardcoded oklch only for hues the token set does not carry. */
+ * possible and hardcoded oklch only for hues the token set does not carry.
+ *
+ * The six non-token hues are declared once here as named custom properties
+ * (one per family) and referenced by the tag classes below, so a future
+ * theming layer that wants to own these accents has a single place to drive
+ * them instead of six hand-typed oklch literals in each class. */
+:root {
+ --agensis-family-tasks: oklch(0.65 0.18 150);
+ --agensis-family-tasks-soft: oklch(0.55 0.16 150);
+ --agensis-family-messages: oklch(0.62 0.19 265);
+ --agensis-family-messages-soft: oklch(0.55 0.16 265);
+ --agensis-family-comments: oklch(0.66 0.16 320);
+ --agensis-family-comments-soft: oklch(0.56 0.14 320);
+ --agensis-family-agents: oklch(0.62 0.19 35);
+ --agensis-family-agents-soft: oklch(0.55 0.16 35);
+ --agensis-family-memory: oklch(0.7 0.12 95);
+ --agensis-family-memory-soft: oklch(0.6 0.11 95);
+ --agensis-family-people: oklch(0.64 0.16 20);
+ --agensis-family-people-soft: oklch(0.56 0.135 20);
+ --agensis-family-canvas: oklch(0.66 0.14 285);
+ --agensis-family-canvas-soft: oklch(0.57 0.12 285);
+}
 .activity-family-tag {
  font-family: var(--agensis-ui-font-family);
  font-size: 10px;
@@ -5337,13 +5358,13 @@ select {
 
 .activity-family-all { background: color-mix(in oklch, var(--foreground) 8%, transparent); color: var(--foreground); }
 .activity-family-docs { background: color-mix(in oklch, var(--primary) 14%, transparent); color: var(--primary); border-color: color-mix(in oklch, var(--primary) 30%, transparent); }
-.activity-family-tasks { background: color-mix(in oklch, oklch(0.65 0.18 150) 14%, transparent); color: oklch(0.55 0.16 150); border-color: color-mix(in oklch, oklch(0.65 0.18 150) 32%, transparent); }
-.activity-family-messages { background: color-mix(in oklch, oklch(0.62 0.19 265) 14%, transparent); color: oklch(0.55 0.16 265); border-color: color-mix(in oklch, oklch(0.62 0.19 265) 32%, transparent); }
-.activity-family-comments { background: color-mix(in oklch, oklch(0.66 0.16 320) 14%, transparent); color: oklch(0.56 0.14 320); border-color: color-mix(in oklch, oklch(0.66 0.16 320) 32%, transparent); }
-.activity-family-agents { background: color-mix(in oklch, oklch(0.62 0.19 35) 14%, transparent); color: oklch(0.55 0.16 35); border-color: color-mix(in oklch, oklch(0.62 0.19 35) 32%, transparent); }
-.activity-family-memory { background: color-mix(in oklch, oklch(0.7 0.12 95) 14%, transparent); color: oklch(0.6 0.11 95); border-color: color-mix(in oklch, oklch(0.7 0.12 95) 32%, transparent); }
-.activity-family-people { background: color-mix(in oklch, oklch(0.64 0.16 20) 14%, transparent); color: oklch(0.56 0.135 20); border-color: color-mix(in oklch, oklch(0.64 0.16 20) 32%, transparent); }
-.activity-family-canvas { background: color-mix(in oklch, oklch(0.66 0.14 285) 14%, transparent); color: oklch(0.57 0.12 285); border-color: color-mix(in oklch, oklch(0.66 0.14 285) 32%, transparent); }
+.activity-family-tasks { background: color-mix(in oklch, var(--agensis-family-tasks) 14%, transparent); color: var(--agensis-family-tasks-soft); border-color: color-mix(in oklch, var(--agensis-family-tasks) 32%, transparent); }
+.activity-family-messages { background: color-mix(in oklch, var(--agensis-family-messages) 14%, transparent); color: var(--agensis-family-messages-soft); border-color: color-mix(in oklch, var(--agensis-family-messages) 32%, transparent); }
+.activity-family-comments { background: color-mix(in oklch, var(--agensis-family-comments) 14%, transparent); color: var(--agensis-family-comments-soft); border-color: color-mix(in oklch, var(--agensis-family-comments) 32%, transparent); }
+.activity-family-agents { background: color-mix(in oklch, var(--agensis-family-agents) 14%, transparent); color: var(--agensis-family-agents-soft); border-color: color-mix(in oklch, var(--agensis-family-agents) 32%, transparent); }
+.activity-family-memory { background: color-mix(in oklch, var(--agensis-family-memory) 14%, transparent); color: var(--agensis-family-memory-soft); border-color: color-mix(in oklch, var(--agensis-family-memory) 32%, transparent); }
+.activity-family-people { background: color-mix(in oklch, var(--agensis-family-people) 14%, transparent); color: var(--agensis-family-people-soft); border-color: color-mix(in oklch, var(--agensis-family-people) 32%, transparent); }
+.activity-family-canvas { background: color-mix(in oklch, var(--agensis-family-canvas) 14%, transparent); color: var(--agensis-family-canvas-soft); border-color: color-mix(in oklch, var(--agensis-family-canvas) 32%, transparent); }
 
 /* Timeline overview strip. */
 .trajectory-timeline {
