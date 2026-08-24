@@ -1212,9 +1212,8 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
                       type="button"
                       onClick={() => toggleStatusFilter(filter.key)}
                       aria-pressed={active}
-                      data-status-tone={filter.key}
                       className={cn(
-                        'status-filter-chip control-outer-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition',
+                        'control-outer-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition',
                         active
                           ? 'border-primary/60 bg-primary/15 text-foreground'
                           : 'border-border bg-card/40 text-muted-foreground hover:bg-muted/50 hover:text-foreground',

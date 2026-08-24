@@ -4620,6 +4620,29 @@ select {
  background: var(--card);
 }
 
+/* Solid primary surfaces use the same restrained glass accent as the selected
+   "All" filter. Keep the primary colour, but let the surface underneath show
+   through instead of painting a block of solid orange. */
+:root[data-ui-theme="default"] :is(
+ [data-slot="button"][data-variant="default"],
+ [data-slot="badge"][data-variant="default"],
+ button[class~="bg-primary"],
+ .sidebar-action-count,
+ .sidebar-section-count
+) {
+ background: color-mix(in srgb, var(--primary) 15%, var(--card)) !important;
+ color: var(--foreground) !important;
+ border-color: color-mix(in srgb, var(--primary) 52%, var(--border-strong) 48%) !important;
+}
+
+:root[data-ui-theme="default"] :is(
+ [data-slot="button"][data-variant="default"],
+ [data-slot="badge"][data-variant="default"],
+ button[class~="bg-primary"]
+):hover {
+ background: color-mix(in srgb, var(--primary) 23%, var(--card)) !important;
+}
+
 :root[data-ui-theme="default"] [data-slot="button"][data-bordered="true"],
 :root[data-ui-theme="default"] [data-slot="toggle-group-item"],
 :root[data-ui-theme="default"] [data-slot="select-trigger"] {
@@ -4661,37 +4684,6 @@ select {
 :root[data-ui-theme="default"] [data-slot="button"][data-variant="default"]:not([data-size^="icon"]):active {
  transform: translate(2px, 2px);
  box-shadow: none !important;
-}
-
-/* The four concrete presence filters carry their own status colour. Use the
-   same filled bordered chip language as the selected "All" filter, without
-   turning the colour into a second selection indicator. */
-:root[data-ui-theme="default"] .status-filter-chip {
- --status-filter-color: var(--primary);
- border-color: color-mix(in srgb, var(--status-filter-color) 42%, var(--border-strong) 58%) !important;
- background: color-mix(in srgb, var(--status-filter-color) 9%, var(--card)) !important;
- box-shadow: var(--default-hard-shadow) !important;
-}
-
-:root[data-ui-theme="default"] .status-filter-chip[aria-pressed="true"] {
- border-color: color-mix(in srgb, var(--status-filter-color) 66%, var(--border-strong) 34%) !important;
- background: color-mix(in srgb, var(--status-filter-color) 18%, var(--card)) !important;
-}
-
-:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="busy"] {
- --status-filter-color: #f59e0b;
-}
-
-:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="idle"] {
- --status-filter-color: #10b981;
-}
-
-:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="disconnected"] {
- --status-filter-color: var(--muted-foreground);
-}
-
-:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="inactive"] {
- --status-filter-color: #f43f5e;
 }
 
 /* Plain buttons (the settings cards and other small pickers) do not carry a
