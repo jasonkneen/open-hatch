@@ -106,6 +106,37 @@ test('the schedule list SQL removes sessions the caller cannot read', async () =
   assert.deepEqual(select.params, [WS, MEMBER]);
 });
 
+test('my-threads casts the UUID auth bind before comparing it to text sender_id', async () => {
+  const calls = [];
+  const app = express();
+  app.use(express.json());
+  mountSchedulesRoutes(app, {
+    requireAuth,
+    jsonError,
+    enforceWorkspaceRole: async () => {},
+    sessionReadableSql: core.sessionReadableSql,
+    getDb: () => ({
+      unsafe: async (sql, params = []) => {
+        calls.push({ sql: String(sql), params });
+        return [];
+      },
+    }),
+    notifyDbSubscribers: () => {},
+    runDueSchedules: async () => {},
+    roleHasWorkspaceCapability: core.roleHasWorkspaceCapability,
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await request(baseUrl, `/backend/workspaces/${WS}/my-threads`);
+    assert.equal(response.status, 200);
+  });
+
+  const select = calls.find((call) => /from chat_sessions s/i.test(call.sql));
+  assert.ok(select);
+  assert.match(select.sql, /m\.sender_id = \$2::text/i);
+  assert.deepEqual(select.params, [WS, MEMBER, 50]);
+});
+
 test('every dedicated schedule read or mutation applies the target-session gate', async () => {
   const writes = [];
   const checked = [];

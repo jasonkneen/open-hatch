@@ -93,7 +93,10 @@ function mountSchedulesRoutes(app, deps = {}) {
         and exists (
           select 1 from messages m
            where m.session_id = s.id and m.deleted_at is null
-             and m.sender_kind = 'user' and m.sender_id = $2
+             and m.sender_kind = 'user'
+             -- The bind is typed as uuid by the private-session membership
+             -- predicate above; sender_id is stored as text.
+             and m.sender_id = $2::text
         )
       order by last_activity desc nulls last
       limit $3`,
