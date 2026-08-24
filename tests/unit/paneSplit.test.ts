@@ -6,16 +6,6 @@ import { AGENT_SPLIT_BOUNDS, agentSplitGridHeight } from '../../src/lib/agentsVi
 
 // A clamp for a draggable divider.
 //
-// HEADS UP — `src/lib/paneSplit.ts` is NOT the clamp the app runs. It arrived on
-// the superseded half of a duplicated feature (commit 0fa2fad, titled "SUPERSEDED
-// by worktree-memory-pane — do not merge") and landed anyway. The live one is
-// `clampSplitPrimary` in `src/lib/splitPane.ts`, reached through
-// `hooks/useSplitResize.ts` by all four dividers, and covered by
-// `tests/unit/splitPane.test.ts`. Nothing under `src/components/**` imports
-// `paneSplit`, `usePaneSplit` or `memorySplit`; deleting the three of them
-// together with the top two blocks here is a live proposal, not done here
-// because removing source is not this change's job.
-//
 // The failure it exists to prevent is silent: a divider position is persisted,
 // so a size chosen in a big window is restored into a small one, and without a
 // clamp that leaves a pane at zero — content that is present, invisible, and
@@ -144,7 +134,7 @@ describe('the Memory window file list', () => {
 describe('the Agents window Both split still goes through the shared clamp', () => {
   // AGENT_SPLIT_BOUNDS is a `SplitBounds` (minPrimaryPx / minSecondaryPx), so the
   // shared clamp it delegates to is `clampSplitPrimary` in lib/splitPane.ts — the
-  // one useSplitResize and all four dividers actually run. This assertion used to
+  // one useSplitResize and the Agents grid/map divider actually run. This assertion used to
   // name `clampPaneSplit` from lib/paneSplit.ts instead, whose bounds are
   // minLeading / minTrailing: both floors read as `undefined` and every expected
   // value was NaN, so the check could never pass. See the note above.

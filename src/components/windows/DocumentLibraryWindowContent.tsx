@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { ChevronLeft, FileText, FolderTree, Info, Library, RefreshCw, Search, Users } from 'lucide-react';
 import {
   LIBRARY_SOURCE_LABELS,
@@ -13,7 +13,9 @@ import {
 } from '../../lib/documentLibrary';
 import { describeDiff, diffHunks, diffLines, type DiffResult } from '../../lib/textDiff';
 import type { DocumentLibrary } from '../../hooks/useDocumentLibrary';
+import { usePaneSplit } from '../../hooks/usePaneSplit';
 import { MarkdownContent } from '../chat/MarkdownContent';
+import { viewPreferenceKey } from '../../lib/viewPreferences';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -172,6 +174,7 @@ export interface DocumentLibraryWindowContentProps {
   onFocusConsumed?: () => void;
   /** Open a workspace document in the editor. Absent for sources with no editor. */
   onOpenWorkspaceDocument?: (documentId: string) => void;
+  workspaceId?: string | null;
 }
 
 export function DocumentLibraryWindowContent({
@@ -179,23 +182,20 @@ export function DocumentLibraryWindowContent({
   focusKey,
   onFocusConsumed,
   onOpenWorkspaceDocument,
+  workspaceId,
 }: DocumentLibraryWindowContentProps) {
   const [query, setQuery] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   /** The alternate being compared against the primary. null = show the primary. */
   const [comparingId, setComparingId] = useState<string | null>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [wide, setWide] = useState(false);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) setWide(entry.contentRect.width >= LIBRARY_SPLIT_MIN_WIDTH);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const librarySplit = usePaneSplit({
+    preferenceKey: viewPreferenceKey('library.split', workspaceId),
+    direction: 'row',
+    bounds: { minLeading: 260, minTrailing: 440, defaultRatio: 0.34 },
+    label: 'Resize document list',
+  });
+  const wide = librarySplit.containerSize >= LIBRARY_SPLIT_MIN_WIDTH;
 
   const { entries, loadSource, refreshAgent } = library;
 
@@ -380,7 +380,7 @@ export function DocumentLibraryWindowContent({
   const renderDetail = (full: boolean) => {
     if (!selected) return null;
     return (
-      <div className={full ? 'flex min-w-0 flex-1 flex-col overflow-hidden' : 'flex min-w-0 flex-1 flex-col overflow-hidden'}>
+      <div className="library-detail-pane flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-card px-3 py-2">
           {full && (
             <Button
@@ -515,7 +515,7 @@ export function DocumentLibraryWindowContent({
                     <div className="h-3 w-4/5 animate-pulse rounded bg-muted" />
                   </div>
                 ) : primaryBody ? (
-                  <div className="rounded-lg border border-border bg-card/40 p-3">
+                  <div className="library-content-markdown rounded-lg border border-border bg-card/40 p-3">
                     {/* Untrusted text: a file from somebody else's machine.
                         MarkdownContent builds elements and never touches
                         innerHTML, which is what makes rendering it safe. */}
@@ -551,7 +551,7 @@ export function DocumentLibraryWindowContent({
   const showSplitDetail = hasDetail && wide;
 
   return (
-    <div ref={containerRef} className="flex h-full overflow-hidden">
+    <div ref={librarySplit.containerRef} className="relative flex h-full min-w-0 overflow-hidden">
       {showFullDetail ? (
         renderDetail(true)
       ) : (
@@ -559,12 +559,27 @@ export function DocumentLibraryWindowContent({
           <div
             className={
               showSplitDetail
-                ? 'flex w-[340px] shrink-0 flex-col overflow-hidden border-r border-border'
+                ? 'flex min-w-0 shrink-0 flex-col overflow-hidden border-r border-border'
                 : 'flex min-w-0 flex-1 flex-col overflow-hidden'
             }
+            style={showSplitDetail
+              ? { width: `${librarySplit.size}px`, maxWidth: 'calc(100% - 440px)' }
+              : undefined}
           >
             {renderList(showSplitDetail)}
           </div>
+          {showSplitDetail && (
+            <button
+              {...librarySplit.dividerProps}
+              style={{ left: `${librarySplit.size}px` }}
+              className="group/split absolute inset-y-0 z-30 -ml-1.5 w-3 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <span
+                aria-hidden="true"
+                className="mx-auto block h-full w-px bg-transparent transition-colors group-hover/split:bg-border group-focus-visible/split:bg-primary/70"
+              />
+            </button>
+          )}
           {showSplitDetail && renderDetail(false)}
         </>
       )}

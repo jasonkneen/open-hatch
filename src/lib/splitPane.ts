@@ -1,7 +1,7 @@
 // How a draggable divider decides where it is allowed to sit.
 //
-// Four windows in this app put a divider between two panes — the inbox, the
-// Tenants account list, the Agents "Both" view and the Memory file browser — and
+// Several windows in this app put a divider between two panes — browse lists,
+// master/detail views, the Agents "Both" view and the Memory file browser — and
 // every one of them remembers where it was left. That memory is the hazard: a
 // split chosen in a 1400px-wide window and restored into a 700px one can leave a
 // pane at zero size, showing nothing and saying nothing about why.

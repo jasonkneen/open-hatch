@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Sparkles, Search, ChevronLeft, FileText, FolderTree, Info, Pencil, Plus, Radio, Trash2, X } from 'lucide-react';
 import type { WorkspaceAgent, AgentConnection } from '../../types';
 import type { SystemCapabilities } from '../../lib/backendClient';
@@ -28,7 +28,9 @@ import {
   type SkillLibraryListing,
 } from '../../lib/skillContent';
 import { useWorkspaceSkills } from '../../hooks/useWorkspaceSkills';
+import { usePaneSplit } from '../../hooks/usePaneSplit';
 import { describeSkillProvenance, type WorkspaceSkillDraft } from '../../lib/workspaceSkills';
+import { viewPreferenceKey } from '../../lib/viewPreferences';
 import { WorkspaceSkillEditor } from './WorkspaceSkillEditor';
 import { MarkdownContent } from '../chat/MarkdownContent';
 import { Badge } from '@/components/ui/badge';
@@ -115,17 +117,13 @@ export function SkillsWindowContent({ agents, agentConnections, systemCapabiliti
   const [query, setQuery] = useState('');
   const [selection, setSelection] = useState<SkillsSelection>(null);
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [wide, setWide] = useState(false);
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries => {
-      for (const entry of entries) setWide(entry.contentRect.width >= SKILLS_SPLIT_MIN_WIDTH);
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const skillsSplit = usePaneSplit({
+    preferenceKey: viewPreferenceKey('skills.split', workspaceId),
+    direction: 'row',
+    bounds: { minLeading: 260, minTrailing: 440, defaultRatio: 0.34 },
+    label: 'Resize skill list',
+  });
+  const wide = skillsSplit.containerSize >= SKILLS_SPLIT_MIN_WIDTH;
 
   // The app-side skill store. `unavailable` means the backend has not shipped
   // these routes yet — the frontend deploys ahead of Fly in this repo — and in
@@ -457,7 +455,7 @@ export function SkillsWindowContent({ agents, agentConnections, systemCapabiliti
           {content.byteSize > 0 && ` · ${formatSkillBytes(content.byteSize)}`}
         </p>
         {content.path && <p className="break-all font-mono text-[11px] text-muted-foreground">{content.path}</p>}
-        <div className="rounded-lg border border-border bg-card/40 p-3">
+        <div className="skills-content-markdown rounded-lg border border-border bg-card/40 p-3">
           <MarkdownContent content={content.markdown} compact />
         </div>
         {content.truncated && (
@@ -474,7 +472,7 @@ export function SkillsWindowContent({ agents, agentConnections, systemCapabiliti
   const renderDetail = (showBack: boolean) => {
     if (!hasDetail) return null;
     return (
-      <div className="flex h-full min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="skills-detail-pane flex h-full min-w-0 flex-1 flex-col overflow-hidden">
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-card px-3 py-2">
           {showBack && (
             <Button type="button" variant="ghost" size="icon-sm" onClick={() => setSelection(null)} aria-label="Back to skills">
@@ -721,7 +719,7 @@ export function SkillsWindowContent({ agents, agentConnections, systemCapabiliti
   const showSplitDetail = hasDetail && wide;
 
   return (
-    <div ref={containerRef} className="flex h-full overflow-hidden">
+    <div ref={skillsSplit.containerRef} className="relative flex h-full min-w-0 overflow-hidden">
       {showFullDetail ? (
         renderDetail(true)
       ) : (
@@ -729,12 +727,27 @@ export function SkillsWindowContent({ agents, agentConnections, systemCapabiliti
           <div
             className={
               showSplitDetail
-                ? 'flex w-[340px] shrink-0 flex-col overflow-hidden border-r border-border'
+                ? 'flex min-w-0 shrink-0 flex-col overflow-hidden border-r border-border'
                 : 'flex min-w-0 flex-1 flex-col overflow-hidden'
             }
+            style={showSplitDetail
+              ? { width: `${skillsSplit.size}px`, maxWidth: 'calc(100% - 440px)' }
+              : undefined}
           >
             {renderList(showSplitDetail)}
           </div>
+          {showSplitDetail && (
+            <button
+              {...skillsSplit.dividerProps}
+              style={{ left: `${skillsSplit.size}px` }}
+              className="group/split absolute inset-y-0 z-30 -ml-1.5 w-3 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            >
+              <span
+                aria-hidden="true"
+                className="mx-auto block h-full w-px bg-transparent transition-colors group-hover/split:bg-border group-focus-visible/split:bg-primary/70"
+              />
+            </button>
+          )}
           {showSplitDetail && renderDetail(false)}
         </>
       )}

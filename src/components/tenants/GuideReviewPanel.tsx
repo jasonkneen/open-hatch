@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, ExternalLink, RotateCw, X } from 'lucide-react';
+import { ArrowLeft, Check, ExternalLink, RotateCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useGuideSubmissions } from '../../hooks/useGuideSubmissions';
+import { usePaneSplit } from '../../hooks/usePaneSplit';
 import {
   guideSubmissionDate,
   guideSubmissionMatch,
@@ -39,7 +40,16 @@ export function GuideReviewPanel() {
     () => filter === 'pending' ? guides.filter(guide => guide.review_status === 'pending') : guides,
     [filter, guides],
   );
-  const selected = guides.find(guide => guide.id === selectedId) ?? visible[0] ?? null;
+  const guideSplit = usePaneSplit({
+    preferenceKey: null,
+    direction: 'row',
+    bounds: { minLeading: 240, minTrailing: 420, defaultRatio: 0.35 },
+    label: 'Resize guide list',
+  });
+  const wide = guideSplit.containerSize >= 760;
+  // On a narrow window the list is the first screen. Do not immediately
+  // replace it with the first guide; selection should be an explicit action.
+  const selected = guides.find(guide => guide.id === selectedId) ?? (wide ? visible[0] : null);
 
   useEffect(() => {
     setNotes(selected?.review_notes || '');
@@ -98,8 +108,20 @@ export function GuideReviewPanel() {
         </div>
       </div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[minmax(15rem,22rem)_minmax(0,1fr)] max-md:grid-cols-1">
-        <ScrollArea className="min-h-0 border-r border-border/60 max-md:max-h-64 max-md:border-b max-md:border-r-0">
+      <div ref={guideSplit.containerRef} className="relative flex min-h-0 flex-1 overflow-hidden">
+        <ScrollArea
+          className={cn(
+            'min-h-0',
+            wide
+              ? 'shrink-0 border-r border-border/60'
+              : selected
+                ? 'hidden'
+                : 'min-w-0 flex-1',
+          )}
+          style={wide
+            ? { width: `${guideSplit.size}px`, maxWidth: 'calc(100% - 420px)' }
+            : undefined}
+        >
           <div className="divide-y divide-border/50">
             {visible.map((guide) => (
               <button
@@ -128,9 +150,40 @@ export function GuideReviewPanel() {
           {error && <p role="alert" className="p-4 text-sm text-destructive">{error}</p>}
         </ScrollArea>
 
-        {selected ? (
-          <ScrollArea className="min-h-0">
-            <div className="mx-auto flex max-w-3xl flex-col gap-5 p-6">
+        {wide && (
+          <button
+            {...guideSplit.dividerProps}
+            style={{ left: `${guideSplit.size}px` }}
+            className="group/split absolute inset-y-0 z-30 -ml-1.5 w-3 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
+            <span
+              aria-hidden="true"
+              className="mx-auto block h-full w-px bg-transparent transition-colors group-hover/split:bg-border group-focus-visible/split:bg-primary/70"
+            />
+          </button>
+        )}
+
+        <div
+          className={cn(
+            'min-h-0',
+            wide || selected ? 'min-w-0 flex-1' : 'hidden',
+          )}
+        >
+          {selected ? (
+            <ScrollArea className="min-h-0">
+              <div className="mx-auto flex max-w-3xl flex-col gap-5 p-6">
+                {!wide && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="self-start"
+                    onClick={() => setSelectedId(null)}
+                  >
+                    <ArrowLeft data-icon="inline-start" />
+                    Back to guides
+                  </Button>
+                )}
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="mb-2"><ReviewStatus status={selected.review_status} /></div>
@@ -197,13 +250,14 @@ export function GuideReviewPanel() {
               <p aria-live="polite" className="sr-only">
                 {saving ? 'Saving review' : actionError || ''}
               </p>
+              </div>
+            </ScrollArea>
+          ) : (
+            <div className="flex h-full items-center justify-center p-8 text-center text-sm text-muted-foreground">
+              Select a guide to inspect its match rules and content.
             </div>
-          </ScrollArea>
-        ) : (
-          <div className="flex items-center justify-center p-8 text-center text-sm text-muted-foreground">
-            Select a guide to inspect its match rules and content.
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

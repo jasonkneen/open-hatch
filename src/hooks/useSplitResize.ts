@@ -4,9 +4,9 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 // The plumbing behind a draggable divider: pointer capture, a keyboard
 // equivalent, and double-click to reset.
 //
-// This exists because the app had FOUR hand-rolled copies of the same twenty
-// lines (the inbox, Tenants, the Agents "Both" view, the Memory file browser)
-// and they had already drifted: two of them called `setPointerCapture`
+// This exists because the app had several hand-rolled copies of the same
+// twenty lines (the inbox, Tenants, the Agents "Both" view, the Memory file
+// browser) and they had already drifted: two of them called `setPointerCapture`
 // unguarded, so a pointer released between dispatch and the handler threw
 // NotFoundError and left the divider inert for that press — the exact bug
 // useFidgetDrag documents and guards. One had a keyboard path; three did not.

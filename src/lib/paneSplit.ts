@@ -1,9 +1,9 @@
 // Where a draggable divider sits, for any two-pane split in the app.
 //
-// This is the fourth resizable divider here (the inbox list, the Tenants
-// account list, the Agents window's grid/map split, and now the Memory
-// window's files/preview split), and the part that is worth having exactly
-// once is not the pointer plumbing — it is the CLAMP.
+// This is the shared clamp for the app's resizable dividers: browse lists,
+// master/detail panes, the Agents grid/map split, and the applet editor/preview
+// split. The part that is worth having exactly once is not the pointer plumbing
+// — it is the CLAMP.
 //
 // A divider position is persisted, which is how it becomes a trap. A width
 // chosen in a wide window and restored in a narrow one, or a height chosen in

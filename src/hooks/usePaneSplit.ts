@@ -52,6 +52,8 @@ export interface PaneSplit {
   size: number;
   /** The container's measured size along the split axis; 0 until measured. */
   containerSize: number;
+  /** True between pointer down and release, for keeping the grab line visible. */
+  dragging: boolean;
   /** Attach to the element the two panes share. Measured, not guessed. */
   containerRef: (node: HTMLElement | null) => void;
   /** Spread onto a `<button>` sitting on the seam. Styling stays with the caller. */
@@ -72,8 +74,9 @@ export function usePaneSplit({ preferenceKey, direction, bounds, label }: PaneSp
   const [stored, setStored] = usePersistedPreference(preferenceKey, PANE_SIZE_PREF, 0);
   // Non-null only while the divider is under the pointer.
   const [draft, setDraft] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [containerSize, setContainerSize] = useState(0);
-  const dragRef = useRef<{ origin: number; size: number } | null>(null);
+  const dragRef = useRef<{ pointerId: number; origin: number; size: number } | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
 
   // A callback ref rather than an effect: a split pane mounts and unmounts with
@@ -95,18 +98,28 @@ export function usePaneSplit({ preferenceKey, direction, bounds, label }: PaneSp
 
   useEffect(() => () => observerRef.current?.disconnect(), []);
 
-  const size = clampPaneSplit(draft ?? stored, containerSize, bounds);
+  // Do not paint a previously stored pixel width while the container is still
+  // unmeasured. That stale number can be wider than the current window and, on
+  // the first frame, would make the list appear to own the whole surface.
+  const size = clampPaneSplit(containerSize > 0 ? draft ?? stored : null, containerSize, bounds);
 
   const onPointerDown = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
+    // A right-click on the seam should still open the context menu normally.
+    if (event.button !== 0) return;
     event.preventDefault();
     try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* drag works uncaptured */ }
-    dragRef.current = { origin: direction === 'column' ? event.clientY : event.clientX, size };
+    dragRef.current = {
+      pointerId: event.pointerId,
+      origin: direction === 'column' ? event.clientY : event.clientX,
+      size,
+    };
+    setDragging(true);
     setDraft(size);
   }, [direction, size]);
 
   const onPointerMove = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
     const drag = dragRef.current;
-    if (!drag) return;
+    if (!drag || drag.pointerId !== event.pointerId) return;
     // Unclamped on the way in: the clamp is applied on the way OUT, so dragging
     // past a floor and back again tracks the pointer instead of sticking.
     const position = direction === 'column' ? event.clientY : event.clientX;
@@ -114,8 +127,10 @@ export function usePaneSplit({ preferenceKey, direction, bounds, label }: PaneSp
   }, [direction]);
 
   const onPointerUp = useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!dragRef.current) return;
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
     dragRef.current = null;
+    setDragging(false);
     try {
       if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
@@ -137,6 +152,7 @@ export function usePaneSplit({ preferenceKey, direction, bounds, label }: PaneSp
   }, [direction, size, containerSize, bounds, setStored]);
 
   const onDoubleClick = useCallback(() => {
+    setDragging(false);
     setDraft(null);
     // 0 is the codec's "never dragged" value, so this restores the default ratio.
     setStored(0);
@@ -146,6 +162,7 @@ export function usePaneSplit({ preferenceKey, direction, bounds, label }: PaneSp
     size,
     containerSize,
     containerRef,
+    dragging,
     dividerProps: {
       type: 'button',
       'aria-label': label,

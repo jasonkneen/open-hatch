@@ -814,7 +814,7 @@ export function FloatingWindowShell({
         <div
           data-window-surface
           className={cn(
-            'flex h-full min-h-0 flex-col overflow-hidden border backdrop-blur-xl',
+            'flex h-full min-h-0 min-w-0 flex-col overflow-hidden border backdrop-blur-xl',
             cornerClass,
             // The surface never casts its own drop shadow: full-view windows
             // are edge-to-edge and shouldn't float, and floating windows get
@@ -960,7 +960,7 @@ export function FloatingWindowShell({
           </div>
 
           <div className={cn(
-            'relative min-h-0 flex-1 overflow-hidden',
+            'relative min-h-0 min-w-0 flex-1 overflow-hidden',
             !canControl && !bodyInteractive && 'pointer-events-none',
           )}>
             {privacyBlanked ? (

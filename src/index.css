@@ -3212,6 +3212,31 @@ button[data-slot="badge"][data-variant="default"]:hover {
  gap: 0.45rem;
 }
 
+/* Skills and mirrored library documents are reference material, not chat
+   messages. Keep their reading body smaller and regular-weight even when the
+   active UI theme uses a heavier baseline for controls. Headings and explicit
+   markdown emphasis still retain hierarchy. */
+.skills-content-markdown .chat-markdown,
+.library-content-markdown .chat-markdown {
+ font-size: 0.875rem;
+ font-weight: 400;
+ line-height: 1.45;
+}
+
+.skills-content-markdown .chat-markdown h1,
+.skills-content-markdown .chat-markdown h2,
+.skills-content-markdown .chat-markdown h3,
+.library-content-markdown .chat-markdown h1,
+.library-content-markdown .chat-markdown h2,
+.library-content-markdown .chat-markdown h3 {
+ font-weight: 650;
+}
+
+.skills-detail-pane,
+.library-detail-pane {
+ font-weight: 400;
+}
+
 .chat-markdown h1,
 .chat-markdown h2,
 .chat-markdown h3 {
@@ -4122,12 +4147,14 @@ body {
  --sidebar-accent-foreground: #1a1a1a;
  --sidebar-border: #e0e0e0;
  --sidebar-ring: var(--primary);
- --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 20px -12px rgba(0, 0, 0, 0.24);
- --shadow-md: 0 2px 5px rgba(0, 0, 0, 0.08), 0 14px 28px -14px rgba(0, 0, 0, 0.28);
- --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.1), 0 20px 42px -18px rgba(0, 0, 0, 0.32);
- --shadow-window: 0 14px 30px -18px rgba(0, 0, 0, 0.34);
- --chrome-cast: 1px 0 0 rgba(0, 0, 0, 0.1), 7px 0 14px -8px rgba(0, 0, 0, 0.2);
- --chrome-cast-left: -7px 0 14px -8px rgba(0, 0, 0, 0.2);
+ --shadow-sm: 2px 2px 0 color-mix(in srgb, var(--foreground) 18%, transparent);
+ --shadow-md: 3px 3px 0 color-mix(in srgb, var(--foreground) 22%, transparent);
+ --shadow-lg: 4px 4px 0 color-mix(in srgb, var(--foreground) 26%, transparent);
+ --shadow-xl: 5px 5px 0 color-mix(in srgb, var(--foreground) 30%, transparent);
+ --shadow-2xl: 6px 6px 0 color-mix(in srgb, var(--foreground) 32%, transparent);
+ --shadow-window: 4px 4px 0 color-mix(in srgb, var(--foreground) 24%, transparent);
+ --chrome-cast: 1px 0 0 color-mix(in srgb, var(--foreground) 10%, transparent), 6px 0 0 color-mix(in srgb, var(--foreground) 18%, transparent);
+ --chrome-cast-left: -6px 0 0 color-mix(in srgb, var(--foreground) 18%, transparent);
  --home-bg-image-opacity: 0.28;
  --home-bg-overlay: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.08) 72%, var(--canvas-base));
  --home-bg-vignette: radial-gradient(135% 105% at 50% 42%, transparent 44%, rgba(0, 0, 0, 0.1) 76%, rgba(0, 0, 0, 0.2) 100%);
@@ -4179,12 +4206,14 @@ body {
  --sidebar-accent-foreground: #f2f2f2;
  --sidebar-border: #2a2a2a;
  --sidebar-ring: var(--primary);
- --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.24), 0 10px 22px -14px rgba(0, 0, 0, 0.54);
- --shadow-md: 0 3px 8px rgba(0, 0, 0, 0.28), 0 16px 30px -16px rgba(0, 0, 0, 0.62);
- --shadow-lg: 0 5px 12px rgba(0, 0, 0, 0.32), 0 22px 44px -18px rgba(0, 0, 0, 0.7);
- --shadow-window: 0 14px 32px -18px rgba(0, 0, 0, 0.68);
- --chrome-cast: 1px 0 0 rgba(0, 0, 0, 0.35), 8px 0 18px -8px rgba(0, 0, 0, 0.55);
- --chrome-cast-left: -8px 0 18px -8px rgba(0, 0, 0, 0.55);
+ --shadow-sm: 2px 2px 0 color-mix(in srgb, var(--foreground) 20%, transparent);
+ --shadow-md: 3px 3px 0 color-mix(in srgb, var(--foreground) 24%, transparent);
+ --shadow-lg: 4px 4px 0 color-mix(in srgb, var(--foreground) 28%, transparent);
+ --shadow-xl: 5px 5px 0 color-mix(in srgb, var(--foreground) 32%, transparent);
+ --shadow-2xl: 6px 6px 0 color-mix(in srgb, var(--foreground) 36%, transparent);
+ --shadow-window: 4px 4px 0 color-mix(in srgb, var(--foreground) 26%, transparent);
+ --chrome-cast: 1px 0 0 color-mix(in srgb, var(--foreground) 18%, transparent), 6px 0 0 color-mix(in srgb, var(--foreground) 26%, transparent);
+ --chrome-cast-left: -6px 0 0 color-mix(in srgb, var(--foreground) 26%, transparent);
  --home-bg-image-opacity: 0.16;
  --home-bg-overlay: linear-gradient(to bottom, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.52) 72%, var(--canvas-base));
  --home-bg-vignette: radial-gradient(135% 105% at 50% 42%, transparent 40%, rgba(0, 0, 0, 0.2) 74%, rgba(0, 0, 0, 0.42) 100%);
@@ -4569,9 +4598,9 @@ select {
  --neo-shadow-y: 2px;
 }
 
-/* Default controls: the same tactile offset idea as ideation-canvas / Doop.
-   Only controls that already have a border get the offset; selection states
-   keep their existing background treatment instead of gaining a new frame. */
+/* Default controls and elevation: the same tactile offset idea as
+   ideation-canvas / Doop. Selection states keep their existing background
+   treatment instead of gaining a new frame. */
 :root[data-ui-theme="default"] body {
  background-color: var(--canvas-base);
  background-image: radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 30rem);
@@ -4634,6 +4663,37 @@ select {
  box-shadow: none !important;
 }
 
+/* The four concrete presence filters carry their own status colour. Use the
+   same filled bordered chip language as the selected "All" filter, without
+   turning the colour into a second selection indicator. */
+:root[data-ui-theme="default"] .status-filter-chip {
+ --status-filter-color: var(--primary);
+ border-color: color-mix(in srgb, var(--status-filter-color) 42%, var(--border-strong) 58%) !important;
+ background: color-mix(in srgb, var(--status-filter-color) 9%, var(--card)) !important;
+ box-shadow: var(--default-hard-shadow) !important;
+}
+
+:root[data-ui-theme="default"] .status-filter-chip[aria-pressed="true"] {
+ border-color: color-mix(in srgb, var(--status-filter-color) 66%, var(--border-strong) 34%) !important;
+ background: color-mix(in srgb, var(--status-filter-color) 18%, var(--card)) !important;
+}
+
+:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="busy"] {
+ --status-filter-color: #f59e0b;
+}
+
+:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="idle"] {
+ --status-filter-color: #10b981;
+}
+
+:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="disconnected"] {
+ --status-filter-color: var(--muted-foreground);
+}
+
+:root[data-ui-theme="default"] .status-filter-chip[data-status-tone="inactive"] {
+ --status-filter-color: #f43f5e;
+}
+
 /* Plain buttons (the settings cards and other small pickers) do not carry a
    data-slot, but their existing `border` utility is still a useful semantic
    boundary for the same tactile treatment. */
@@ -4650,6 +4710,37 @@ select {
 :root[data-ui-theme="default"] button:not([data-slot="button"])[class~="border"]:not([data-variant="ghost"]):active {
  transform: translate(2px, 2px);
  box-shadow: none !important;
+}
+
+/* Tailwind's shadow utilities bake blurred values into --tw-shadow instead of
+   reading the app's --shadow-* tokens. Re-point the outer utility shadows at
+   the Default scale while preserving any separate focus/ring layers. State
+   controls and icon-only buttons are excluded so elevation never becomes a
+   selection indicator. */
+:root[data-ui-theme="default"] :is(.shadow-sm, [class~="hover:shadow-sm"]:hover):not([data-selection-control]):not([data-state="active"]):not([data-state="on"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-slot="button"][data-size^="icon"]) {
+ --tw-shadow: var(--shadow-sm) !important;
+}
+
+:root[data-ui-theme="default"] :is(.shadow-md, [class~="hover:shadow-md"]:hover):not([data-selection-control]):not([data-state="active"]):not([data-state="on"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-slot="button"][data-size^="icon"]) {
+ --tw-shadow: var(--shadow-md) !important;
+}
+
+:root[data-ui-theme="default"] :is(.shadow-lg, [class~="hover:shadow-lg"]:hover):not([data-selection-control]):not([data-state="active"]):not([data-state="on"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-slot="button"][data-size^="icon"]) {
+ --tw-shadow: var(--shadow-lg) !important;
+}
+
+:root[data-ui-theme="default"] :is(.shadow-xl, [class~="hover:shadow-xl"]:hover):not([data-selection-control]):not([data-state="active"]):not([data-state="on"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-slot="button"][data-size^="icon"]) {
+ --tw-shadow: var(--shadow-xl) !important;
+}
+
+:root[data-ui-theme="default"] :is(.shadow-2xl, [class~="hover:shadow-2xl"]:hover):not([data-selection-control]):not([data-state="active"]):not([data-state="on"]):not([aria-selected="true"]):not([aria-pressed="true"]):not([data-slot="button"][data-size^="icon"]) {
+ --tw-shadow: var(--shadow-2xl) !important;
+}
+
+/* The same controls do not retain Tailwind's blurred selection shadow either;
+   selection is carried by the existing background/border state. */
+:root[data-ui-theme="default"] :is([data-selection-control], [data-state="active"], [data-state="on"], [aria-selected="true"], [aria-pressed="true"], [data-slot="button"][data-size^="icon"]) {
+ --tw-shadow: none !important;
 }
 
 :root[data-ui-theme="default"] [data-slot="toggle-group-item"][data-state="on"] {
@@ -4679,6 +4770,18 @@ select {
  border-color: var(--border);
  background: var(--card);
  box-shadow: 1px 1px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+/* A few legacy surfaces carry their own literal blurred shadow instead of a
+   Tailwind utility. Keep those surfaces in the same hard-offset system. */
+:root[data-ui-theme="default"] .home-workspace-composer,
+:root[data-ui-theme="default"] .settings-dialog {
+ box-shadow: var(--shadow-xl) !important;
+}
+
+:root[data-ui-theme="default"] .task-card-expanded,
+:root[data-ui-theme="default"] .thread-widget-card {
+ box-shadow: var(--shadow-md) !important;
 }
 
 :root[data-ui-theme="default"] [data-window-surface] {

@@ -229,6 +229,11 @@ const NOT_A_FILTER: Record<string, string> = {
   // cases in tests/unit/memoryBrowserView.test.ts, and by the shared clamp's own
   // cases in tests/unit/splitPane.test.ts.
   'memory.file-split': 'file-list/preview divider position, re-clamped against the live container every render — hides no data',
+  'skills.split': 'skill-list/detail divider position, re-clamped against the live container — hides no skills',
+  'library.split': 'document-list/detail divider position, re-clamped against the live container — hides no documents',
+  'resources.split': 'resource-list/detail divider position, re-clamped against the live container — hides no resources',
+  'agents.detail-split': 'agent-list/detail divider position, re-clamped against the live container — hides no agents',
+  'applet.split': 'applet editor/preview divider position, re-clamped against the live container — hides no source or preview',
   'tips.dismissed': 'onboarding tips, not a data list',
   // Also collapses an owner broadcast in that same slot (OwnerMessageCard), so
   // a stored `true` means a message can ARRIVE collapsed. Not a filter and not a

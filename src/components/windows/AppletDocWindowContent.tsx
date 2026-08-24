@@ -2,6 +2,8 @@ import React, { Suspense, useCallback, useEffect, useRef, useState } from 'react
 import { Code2, Columns2, Eye, LayoutTemplate, Star, Trash2 } from 'lucide-react';
 import type { Document } from '../../types';
 import { extractHtmlFromDocContent } from '../../lib/canvasApps';
+import { usePaneSplit } from '../../hooks/usePaneSplit';
+import { viewPreferenceKey } from '../../lib/viewPreferences';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -44,6 +46,13 @@ export const AppletDocWindowContent = React.memo(function AppletDocWindowContent
   const [content, setContent] = useState(doc.content || '');
   const [loadingContent, setLoadingContent] = useState(doc.content === undefined);
   const [view, setView] = useState<'preview' | 'code' | 'split'>('preview');
+  const appletSplit = usePaneSplit({
+    preferenceKey: viewPreferenceKey('applet.split', doc.id),
+    direction: 'row',
+    bounds: { minLeading: 320, minTrailing: 320, defaultRatio: 0.5 },
+    label: 'Resize applet editor',
+  });
+  const splitWide = appletSplit.containerSize >= 720;
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the async fetch below from clobbering an edit the user already made
   // while the body was still in flight (fetch is not instant, autosave is 800ms).
@@ -190,9 +199,23 @@ export const AppletDocWindowContent = React.memo(function AppletDocWindowContent
           // Split is editor + preview in one grid; the solo views are the same
           // two panes with one column hidden, so all three share the mounts and
           // switching view never resets the editor's cursor or the iframe.
-          <div className={view === 'split' ? 'grid h-full min-h-0 grid-cols-2 gap-3' : 'h-full min-h-0'}>
+          <div
+            ref={appletSplit.containerRef}
+            className={view === 'split'
+              ? splitWide
+                ? 'relative flex h-full min-h-0 gap-3'
+                : 'flex h-full min-h-0 flex-col gap-3'
+              : 'h-full min-h-0'}
+          >
             {view !== 'preview' && (
-              <div className="h-full min-h-0 min-w-0">
+              <div
+                className={view === 'split'
+                  ? splitWide ? 'min-h-0 min-w-0 shrink-0' : 'min-h-0 min-w-0 flex-1'
+                  : 'h-full min-h-0 min-w-0'}
+                style={view === 'split' && splitWide
+                  ? { width: `${appletSplit.size}px`, maxWidth: 'calc(100% - 320px)' }
+                  : undefined}
+              >
                 <Suspense
                   fallback={
                     <div className="flex h-full items-center justify-center rounded-md border border-border bg-muted/20 text-sm text-muted-foreground">
@@ -204,8 +227,22 @@ export const AppletDocWindowContent = React.memo(function AppletDocWindowContent
                 </Suspense>
               </div>
             )}
+            {view === 'split' && splitWide && (
+              <button
+                {...appletSplit.dividerProps}
+                style={{ left: `${appletSplit.size + 6}px` }}
+                className="group/split absolute inset-y-0 z-30 -ml-1.5 w-3 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mx-auto block h-full w-px bg-transparent transition-colors group-hover/split:bg-border group-focus-visible/split:bg-primary/70"
+                />
+              </button>
+            )}
             {view !== 'code' && (
-              <div className="h-full min-h-0 min-w-0">
+              <div
+                className={view === 'split' ? 'min-h-0 min-w-0 flex-1' : 'h-full min-h-0 min-w-0'}
+              >
                 {previewHtml ? (
                   <iframe
                     title={title}

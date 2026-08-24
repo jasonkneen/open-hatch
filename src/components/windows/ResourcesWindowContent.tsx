@@ -21,6 +21,8 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/
 import { Spinner } from '@/components/ui/spinner';
 import { cn } from '@/lib/utils';
 import type { WorkspaceAgent } from '@/types';
+import { usePaneSplit } from '../../hooks/usePaneSplit';
+import { viewPreferenceKey } from '../../lib/viewPreferences';
 import {
   RESOURCE_FACETS,
   RESOURCE_OPERATION_LABELS,
@@ -139,6 +141,13 @@ export function ResourcesWindowContent({ workspaceId, agents }: ResourcesWindowC
     () => resources.find(resource => resource.id === selectedId) ?? null,
     [resources, selectedId],
   );
+  const resourcesSplit = usePaneSplit({
+    preferenceKey: viewPreferenceKey('resources.split', workspaceId),
+    direction: 'row',
+    bounds: { minLeading: 260, minTrailing: 440, defaultRatio: 0.38 },
+    label: 'Resize resource list',
+  });
+  const splitWide = resourcesSplit.containerSize >= 900;
   const selectedOperations = useMemo(
     () => operationsForResource(operations, selected?.id ?? null),
     [operations, selected?.id],
@@ -388,8 +397,20 @@ export function ResourcesWindowContent({ workspaceId, agents }: ResourcesWindowC
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden md:grid-cols-[minmax(220px,0.38fr)_minmax(0,1fr)]">
-        <div className="min-h-0 overflow-y-auto border-b border-border p-3 md:border-b-0 md:border-r">
+      <div ref={resourcesSplit.containerRef} className="relative flex min-h-0 flex-1 overflow-hidden">
+        <div
+          className={cn(
+            'min-h-0 overflow-y-auto p-3',
+            splitWide
+              ? 'shrink-0 border-r border-border'
+              : selected
+                ? 'hidden'
+                : 'min-w-0 flex-1',
+          )}
+          style={splitWide
+            ? { width: `${resourcesSplit.size}px`, maxWidth: 'calc(100% - 440px)' }
+            : undefined}
+        >
           {loading && resources.length === 0 ? (
             <div className="flex h-40 items-center justify-center"><Spinner /></div>
           ) : resources.length === 0 ? (
@@ -434,7 +455,41 @@ export function ResourcesWindowContent({ workspaceId, agents }: ResourcesWindowC
           )}
         </div>
 
-        <div className="min-h-0 overflow-y-auto p-4">
+        {splitWide && (
+          <button
+            {...resourcesSplit.dividerProps}
+            style={{ left: `${resourcesSplit.size}px` }}
+            className="group/split absolute inset-y-0 z-30 -ml-1.5 w-3 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          >
+            <span
+              aria-hidden="true"
+              className="mx-auto block h-full w-px bg-transparent transition-colors group-hover/split:bg-border group-focus-visible/split:bg-primary/70"
+            />
+          </button>
+        )}
+
+        <div
+          className={cn(
+            'min-h-0 overflow-y-auto p-4',
+            splitWide
+              ? 'min-w-0 flex-1'
+              : selected
+                ? 'min-w-0 flex-1'
+                : 'hidden',
+          )}
+        >
+          {!splitWide && selected && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="mb-3"
+              onClick={() => setSelectedId(null)}
+            >
+              <ChevronRight className="rotate-180" data-icon="inline-start" />
+              Back to resources
+            </Button>
+          )}
           {!selected ? (
             <Empty className="min-h-64 border-0">
               <EmptyHeader>

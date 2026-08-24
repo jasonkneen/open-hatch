@@ -157,10 +157,12 @@ import {
 } from '../../lib/skillTokens';
 import { oneOf, setOf, viewPreferenceKey } from '../../lib/viewPreferences';
 import { usePersistedPreference } from '../../hooks/usePersistedPreference';
+import { usePaneSplit } from '../../hooks/usePaneSplit';
 import { useSplitResize } from '../../hooks/useSplitResize';
 import {
   AGENT_LAYOUT_VIEW_PREF,
   AGENT_SPLIT_PREF,
+  AGENTS_SPLIT_MIN_REM,
   AGENTS_SPLIT_HIDE_BELOW,
   AGENTS_SPLIT_ONLY_BELOW,
   agentFormBarPlacement,
@@ -533,6 +535,18 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const selectedSession = sessions.find(session => session.id === selectedSessionId) || null;
   const sessionChat = selectedSession && renderSessionChat ? renderSessionChat(selectedSession) : null;
+  const agentDetailSplit = usePaneSplit({
+    preferenceKey: viewPreferenceKey('agents.detail-split', workspaceId),
+    direction: 'row',
+    bounds: { minLeading: 360, minTrailing: 384, defaultRatio: 0.56 },
+    label: 'Resize agent list',
+  });
+  const rootFontSize = typeof document === 'undefined'
+    ? 16
+    : Number.parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+  const detailOpen = Boolean(sessionChat || selectedAgent);
+  const showAgentDetailSplit = detailOpen
+    && agentDetailSplit.containerSize >= AGENTS_SPLIT_MIN_REM * rootFontSize;
   const connectAgent = agents.find(agent => agent.id === connectAgentId) || null;
   // An external focus request (e.g. opening an agent from elsewhere) drills into it;
   // otherwise the window opens on the card grid, not a pre-selected agent.
@@ -1112,12 +1126,17 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
           // the selected agent's detail opens beside it, one hairline between
           // them. Below 42rem the detail replaces the list instead, with a
           // back affordance — the threshold is stated in lib/agentsView.ts.
-          <div className="@container/agentswin flex h-full min-h-0">
+          <div ref={agentDetailSplit.containerRef} className="relative @container/agentswin flex h-full min-h-0">
             <section
               className={cn(
-                'flex min-h-0 min-w-0 flex-1 flex-col',
-                selectedAgent && cn('border-r border-border/60 pr-3', AGENTS_SPLIT_HIDE_BELOW),
+                'flex min-h-0 min-w-0 flex-col',
+                showAgentDetailSplit
+                  ? 'shrink-0 border-r border-border/60 pr-3'
+                  : cn('flex-1', detailOpen && AGENTS_SPLIT_HIDE_BELOW),
               )}
+              style={showAgentDetailSplit
+                ? { width: `${agentDetailSplit.size}px`, maxWidth: 'calc(100% - 384px)' }
+                : undefined}
             >
             {/* Shown when there is something to filter TO, or when the filter is
                 already engaged — otherwise an active filter can hide its own
@@ -1193,8 +1212,9 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
                       type="button"
                       onClick={() => toggleStatusFilter(filter.key)}
                       aria-pressed={active}
+                      data-status-tone={filter.key}
                       className={cn(
-                        'control-outer-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition',
+                        'status-filter-chip control-outer-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition',
                         active
                           ? 'border-primary/60 bg-primary/15 text-foreground'
                           : 'border-border bg-card/40 text-muted-foreground hover:bg-muted/50 hover:text-foreground',
@@ -1371,8 +1391,20 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
               return <div className="min-h-0 flex-1 overflow-y-auto px-1 pt-1.5 pb-2">{grid}</div>;
             })()}
             </section>
+            {showAgentDetailSplit && (
+              <button
+                {...agentDetailSplit.dividerProps}
+                style={{ left: `${agentDetailSplit.size}px` }}
+                className="group/split absolute inset-y-0 z-30 -ml-1.5 w-3 touch-none cursor-col-resize outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              >
+                <span
+                  aria-hidden="true"
+                  className="mx-auto block h-full w-px bg-transparent transition-colors group-hover/split:bg-border group-focus-visible/split:bg-primary/70"
+                />
+              </button>
+            )}
             {sessionChat ? (
-              <section className="flex min-h-0 w-[clamp(24rem,45%,34rem)] shrink-0 flex-col overflow-hidden pl-3 @max-2xl/agentswin:w-full @max-2xl/agentswin:pl-0">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pl-3 @max-2xl/agentswin:w-full @max-2xl/agentswin:pl-0">
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card/40">
                   <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2">
                     <span className="min-w-0 flex-1 truncate text-xs font-medium">
@@ -1391,7 +1423,7 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
                 </div>
               </section>
             ) : selectedAgent && (
-              <section className="flex min-h-0 w-[clamp(24rem,45%,34rem)] shrink-0 flex-col overflow-hidden pl-3 @max-2xl/agentswin:w-full @max-2xl/agentswin:pl-0">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden pl-3 @max-2xl/agentswin:w-full @max-2xl/agentswin:pl-0">
                 <AgentDetailPane
                   agent={selectedAgent}
                   isEditing={editingId === selectedAgent.id}

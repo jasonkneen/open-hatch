@@ -588,6 +588,7 @@ function AppearancePanel({
         <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1">
           <button
             type="button"
+            data-selection-control="true"
             onClick={() => {
               if (!isDefaultFamily) {
                 const dark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -600,6 +601,7 @@ function AppearancePanel({
           </button>
           <button
             type="button"
+            data-selection-control="true"
             onClick={() => {
               if (themeStyleTab !== 'classic') {
                 const dark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -612,6 +614,7 @@ function AppearancePanel({
           </button>
           <button
             type="button"
+            data-selection-control="true"
             onClick={() => {
               if (!isNeoFamily) {
                 const dark = document.documentElement.getAttribute('data-theme') === 'dark';

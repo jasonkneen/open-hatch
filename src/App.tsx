@@ -3547,6 +3547,7 @@ function CanvasLayerScene({
             >
               <DocumentLibraryWindowContent
                 library={documentLibrary}
+                workspaceId={workspaceId}
                 focusKey={win.focusLibraryKey}
                 onFocusConsumed={() => onUpdateWindow(win.id, { focusLibraryKey: undefined })}
                 onOpenWorkspaceDocument={onOpenDocumentById}
