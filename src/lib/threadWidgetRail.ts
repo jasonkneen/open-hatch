@@ -63,8 +63,8 @@ export const CHAT_COLUMN_MAX_WIDTH = 800;
  * column can no longer be 800px wide.
  *
  * `p-2` is `0.5rem`, so this is only the 16px-root value; the DOM uses the rem
- * on both sides rather than this number, and the two agree to within a pixel at
- * the app's 15px root. The 1px is slack in the rail's favour — it reserves the
+ * on both sides rather than this number, and the two agree at the app's 16px
+ * root. The 1px is slack in the rail's favour — it reserves the
  * gutter a hair later than it strictly could.
  */
 export const COMPOSER_SHELL_PADDING = 8;

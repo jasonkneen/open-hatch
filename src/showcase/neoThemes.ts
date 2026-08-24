@@ -7,9 +7,10 @@
 // inline on <html> (the same mechanism the accent presets use):
 //
 //   1. PALETTE  — paper / ink / primary / accents (per light + dark scheme).
-//   2. STYLE    — a "profile" that swaps font, shadow depth, press distance,
-//                 corner radius, heading treatment and paper texture. This is
-//                 what makes themes structurally different, not just recoloured.
+//   2. STYLE    — a "profile" that swaps optional type overrides, shadow depth,
+//                 press distance, corner radius, heading treatment and paper
+//                 texture. This is what makes themes structurally different,
+//                 not just recoloured.
 //
 // A theme = a palette seed (per scheme) + a style profile id. Both compose with
 // the app's existing light/dark toggle: switching scheme re-applies the seed.
@@ -47,58 +48,6 @@ export interface NeoTheme {
   dark: NeoSeed;
 }
 
-// ---- font stacks ----------------------------------------------------------
-// Base faces ship in index.css's @import; the rest are lazy-loaded by
-// ensureNeoFonts() the first time a neo theme is applied (see below), so
-// non-neo users never download them.
-const SANS = 'system-ui, -apple-system, sans-serif';
-const MONO = 'ui-monospace, monospace';
-const F = {
-  // base (always available)
-  grotesk: `'Space Grotesk', ${SANS}`,
-  archivo: `'Archivo Black', 'Space Grotesk', ${SANS}`,
-  mono: `'IBM Plex Mono', 'Space Mono', ${MONO}`,
-  spaceMono: `'Space Mono', 'IBM Plex Mono', ${MONO}`,
-  inter: `'Inter', ${SANS}`,
-  // display faces (lazy)
-  anton: `'Anton', 'Archivo Black', ${SANS}`,
-  bungee: `'Bungee', 'Archivo Black', ${SANS}`,
-  syne: `'Syne', 'Space Grotesk', ${SANS}`,
-  unbounded: `'Unbounded', 'Archivo Black', ${SANS}`,
-  bebas: `'Bebas Neue', 'Archivo Black', ${SANS}`,
-  staatliches: `'Staatliches', 'Archivo Black', ${SANS}`,
-  rubikMono: `'Rubik Mono One', 'Space Mono', ${MONO}`,
-  bricolage: `'Bricolage Grotesque', 'Space Grotesk', ${SANS}`,
-  bigShoulders: `'Big Shoulders Display', 'Archivo Black', ${SANS}`,
-  darker: `'Darker Grotesque', 'Space Grotesk', ${SANS}`,
-  // body faces (lazy)
-  hanken: `'Hanken Grotesk', ${SANS}`,
-  dmSans: `'DM Sans', ${SANS}`,
-  workSans: `'Work Sans', ${SANS}`,
-  manrope: `'Manrope', ${SANS}`,
-  schibsted: `'Schibsted Grotesk', ${SANS}`,
-  figtree: `'Figtree', ${SANS}`,
-  jetbrains: `'JetBrains Mono', 'IBM Plex Mono', ${MONO}`,
-};
-
-// Google Fonts loaded on demand (the new faces only; base faces are in the
-// index.css @import). Injected once when the first neo theme is applied.
-const NEO_FONT_HREF =
-  'https://fonts.googleapis.com/css2?family=Anton&family=Bebas+Neue&family=Big+Shoulders+Display:wght@700;800;900&family=Bricolage+Grotesque:wght@500;600;700;800&family=Bungee&family=Darker+Grotesque:wght@600;700;800;900&family=DM+Sans:wght@400;500;700&family=Figtree:wght@400;600;700&family=Hanken+Grotesk:wght@400;600;700;800&family=JetBrains+Mono:wght@400;600;700&family=Manrope:wght@400;600;700;800&family=Rubik+Mono+One&family=Schibsted+Grotesk:wght@400;600;700;800&family=Staatliches&family=Syne:wght@600;700;800&family=Unbounded:wght@600;700;900&family=Work+Sans:wght@400;600;700&display=swap';
-
-let neoFontsInjected = false;
-/** Inject the lazy neo font stylesheet once (no-op if already present). */
-function ensureNeoFonts() {
-  if (neoFontsInjected || typeof document === 'undefined') return;
-  neoFontsInjected = true;
-  if (document.querySelector('link[data-neo-fonts]')) return;
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = NEO_FONT_HREF;
-  link.setAttribute('data-neo-fonts', '');
-  document.head.appendChild(link);
-}
-
 // hard offset shadow of size n, keeping the per-theme shadow ink.
 const sh = (n: number) => `${n}px ${n}px 0 var(--neo-shadow-ink)`;
 const dots = (size: number) => ({
@@ -117,8 +66,9 @@ const noTexture = { texture: 'none', textureSize: 'auto' };
 
 export interface NeoStyleProfile {
   label: string;
-  font: string;
-  display: string;
+  /** Optional opt-in override; normal profiles inherit the app font setting. */
+  font?: string;
+  display?: string;
   weight: string;
   spacing: string;
   transform: string;
@@ -133,135 +83,135 @@ export interface NeoStyleProfile {
 export const STYLE_PROFILES: Record<string, NeoStyleProfile> = {
   // current neo look — the safe default (must match the index.css base block)
   brutal: {
-    label: 'Brutal', font: F.grotesk, display: F.grotesk,
+    label: 'Brutal',
     weight: '700', spacing: '-0.01em', transform: 'none', radius: 'default',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '3px', y: '3px' },
     ...dots(22),
   },
-  // big Archivo Black headlines, deep shadows, fat dots — loud poster energy
+  // heavier headings, deep shadows, fat dots — loud poster energy
   heavy: {
-    label: 'Heavy Poster', font: F.grotesk, display: F.archivo,
+    label: 'Heavy Poster',
     weight: '400', spacing: '-0.02em', transform: 'none', radius: 'default',
     shadow: { xs: sh(2), sm: sh(3), md: sh(5), lg: sh(7), x: '4px', y: '4px' },
     ...dots(26),
   },
   // near-flat, sharp corners, fine grid — Swiss / International brutalism
   flat: {
-    label: 'Flat Swiss', font: F.grotesk, display: F.grotesk,
+    label: 'Flat Swiss',
     weight: '700', spacing: '-0.02em', transform: 'none', radius: 'sharp',
     shadow: { xs: '0 0 0 var(--neo-shadow-ink)', sm: sh(1), md: sh(1), lg: sh(2), x: '1px', y: '1px' },
     ...grid(26),
   },
   // monospace everything, uppercase, crisp shadows, grid — terminal / ops
   techno: {
-    label: 'Terminal', font: F.mono, display: F.mono,
+    label: 'Terminal',
     weight: '700', spacing: '0.02em', transform: 'uppercase', radius: 'sharp',
     shadow: { xs: sh(1), sm: sh(2), md: sh(2), lg: sh(3), x: '2px', y: '2px' },
     ...grid(22),
   },
-  // Space Mono body, Archivo display, diagonal hatch — risograph zine
+  // tracked uppercase headings, diagonal hatch — risograph zine
   print: {
-    label: 'Riso Zine', font: F.spaceMono, display: F.archivo,
+    label: 'Riso Zine',
     weight: '400', spacing: '0.03em', transform: 'uppercase', radius: 'default',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '3px', y: '3px' },
     ...hatch,
   },
-  // Inter body, rounded corners, softer shadows, fine dots — friendly product
+  // rounded corners, softer shadows, fine dots — friendly product
   soft: {
-    label: 'Soft Product', font: F.inter, display: F.grotesk,
+    label: 'Soft Product',
     weight: '700', spacing: '-0.005em', transform: 'none', radius: 'soft',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '2px', y: '2px' },
     ...dots(18),
   },
-  // wide tracked uppercase Archivo display, no texture, thin shadow — magazine
+  // wide tracked uppercase headings, no texture, thin shadow — magazine
   editorial: {
-    label: 'Editorial', font: F.inter, display: F.archivo,
+    label: 'Editorial',
     weight: '400', spacing: '0.10em', transform: 'uppercase', radius: 'sharp',
     shadow: { xs: '0 0 0 var(--neo-shadow-ink)', sm: sh(1), md: sh(2), lg: sh(2), x: '2px', y: '2px' },
     ...noTexture,
   },
   // chunky bouncy shadows, soft corners, big dots — sticker pack
   sticker: {
-    label: 'Sticker Pack', font: F.grotesk, display: F.grotesk,
+    label: 'Sticker Pack',
     weight: '700', spacing: '-0.01em', transform: 'none', radius: 'soft',
     shadow: { xs: sh(2), sm: sh(3), md: sh(4), lg: sh(6), x: '4px', y: '4px' },
     ...dots(28),
   },
 
-  // ---- font-forward profiles: each anchored on a distinctive display face ----
-  // tall condensed caps — billboard
+  // ---- additional structural profiles -------------------------------------
+  // tall condensed spacing — billboard
   billboard: {
-    label: 'Billboard', font: F.hanken, display: F.anton,
+    label: 'Billboard',
     weight: '400', spacing: '0.01em', transform: 'uppercase', radius: 'default',
     shadow: { xs: sh(2), sm: sh(3), md: sh(4), lg: sh(6), x: '4px', y: '4px' },
     ...dots(24),
   },
-  // Bungee signage — arcade
+  // Signage spacing — arcade
   arcade: {
-    label: 'Arcade', font: F.grotesk, display: F.bungee,
+    label: 'Arcade',
     weight: '400', spacing: '0', transform: 'uppercase', radius: 'default',
     shadow: { xs: sh(2), sm: sh(3), md: sh(4), lg: sh(6), x: '4px', y: '4px' },
     ...dots(26),
   },
-  // Syne — gallery / art-book
+  // Gallery / art-book
   gallery: {
-    label: 'Gallery', font: F.inter, display: F.syne,
+    label: 'Gallery',
     weight: '800', spacing: '-0.01em', transform: 'none', radius: 'sharp',
     shadow: { xs: '0 0 0 var(--neo-shadow-ink)', sm: sh(1), md: sh(2), lg: sh(2), x: '2px', y: '2px' },
     ...noTexture,
   },
-  // Unbounded — rounded heavy balloon
+  // Rounded heavy balloon
   balloon: {
-    label: 'Balloon', font: F.dmSans, display: F.unbounded,
+    label: 'Balloon',
     weight: '700', spacing: '-0.01em', transform: 'none', radius: 'soft',
     shadow: { xs: sh(2), sm: sh(3), md: sh(4), lg: sh(6), x: '3px', y: '3px' },
     ...dots(22),
   },
-  // Bebas Neue — tall marquee caps
+  // Tall marquee caps
   marquee: {
-    label: 'Marquee', font: F.workSans, display: F.bebas,
+    label: 'Marquee',
     weight: '400', spacing: '0.04em', transform: 'uppercase', radius: 'sharp',
     shadow: { xs: sh(1), sm: sh(2), md: sh(2), lg: sh(3), x: '2px', y: '2px' },
     ...grid(24),
   },
-  // Staatliches — condensed stencil caps
+  // Condensed stencil caps
   stencil: {
-    label: 'Stencil', font: F.hanken, display: F.staatliches,
+    label: 'Stencil',
     weight: '400', spacing: '0.03em', transform: 'uppercase', radius: 'default',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '3px', y: '3px' },
     ...hatch,
   },
-  // Rubik Mono One — blocky monospace slab
+  // Blocky monospace slab
   block: {
-    label: 'Block', font: F.spaceMono, display: F.rubikMono,
+    label: 'Block',
     weight: '400', spacing: '0', transform: 'uppercase', radius: 'sharp',
     shadow: { xs: sh(1), sm: sh(2), md: sh(2), lg: sh(3), x: '2px', y: '2px' },
     ...grid(22),
   },
-  // Bricolage Grotesque — modern press / editorial-tech
+  // Modern press / editorial-tech
   press: {
-    label: 'Press', font: F.schibsted, display: F.bricolage,
+    label: 'Press',
     weight: '800', spacing: '-0.015em', transform: 'none', radius: 'default',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '3px', y: '3px' },
     ...dots(20),
   },
-  // Manrope throughout, technical grid paper — drafting / blueprint
+  // Technical grid paper — drafting / blueprint
   blueprint: {
-    label: 'Blueprint', font: F.manrope, display: F.manrope,
+    label: 'Blueprint',
     weight: '800', spacing: '-0.015em', transform: 'none', radius: 'default',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '3px', y: '3px' },
     ...grid(24),
   },
-  // Big Shoulders Display — industrial transit
+  // Industrial transit
   transit: {
-    label: 'Transit', font: F.manrope, display: F.bigShoulders,
+    label: 'Transit',
     weight: '900', spacing: '0.01em', transform: 'uppercase', radius: 'sharp',
     shadow: { xs: sh(1.5), sm: sh(2), md: sh(3), lg: sh(4), x: '3px', y: '3px' },
     ...grid(24),
   },
-  // Darker Grotesque — high-contrast magazine
+  // High-contrast magazine
   mag: {
-    label: 'Mag', font: F.figtree, display: F.darker,
+    label: 'Mag',
     weight: '900', spacing: '-0.02em', transform: 'none', radius: 'sharp',
     shadow: { xs: '0 0 0 var(--neo-shadow-ink)', sm: sh(1), md: sh(2), lg: sh(2), x: '2px', y: '2px' },
     ...noTexture,
@@ -375,7 +325,7 @@ const CREAM = '#fff6df';
 const PAPER2 = '#fff9ef';
 
 export const NEO_THEMES: NeoTheme[] = [
-  // ───────────────────────── BLUEPRINT — default, Manrope ──────────────────
+  // ───────────────────────── BLUEPRINT — default ────────────────────────────
   {
     id: 'blueprint', label: 'Blueprint', group: 'Blueprint', style: 'blueprint',
     swatch: ['#ffffff', '#7de3ff', '#0d2440'],
@@ -670,12 +620,13 @@ export function clearNeoThemeVars() {
 /** Write a theme's palette + style tokens inline for the given scheme. */
 function applyNeoThemeVars(theme: NeoTheme, scheme: NeoScheme) {
   const root = document.documentElement;
-  ensureNeoFonts();
   clearNeoThemeVars();
   const vars = expand(scheme === 'dark' ? theme.dark : theme.light, scheme);
   for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
 
-  // structural style profile: fonts, headings, shadow depth, radius, texture.
+  // Structural style profile: shadows, radius, texture, and type treatment.
+  // Fonts are inherited from the app-level appearance setting unless a profile
+  // explicitly opts into an override.
   const s = resolveNeoStyle(theme);
   // Expose the profile to CSS so component treatments (badge rotation, switch
   // knob, table chrome, button feel) can branch per style, not just per token.
@@ -686,8 +637,8 @@ function applyNeoThemeVars(theme: NeoTheme, scheme: NeoScheme) {
   // with the style's own radius tier. Keeps "soft"/"sticker"/"balloon" pill
   // corners scoped to controls instead of blowing up whole windows.
   root.style.setProperty('--radius-xl', RADII.default['--radius-xl']);
-  root.style.setProperty('--neo-font', s.font);
-  root.style.setProperty('--neo-display', s.display);
+  if (s.font) root.style.setProperty('--neo-font', s.font);
+  if (s.display) root.style.setProperty('--neo-display', s.display);
   root.style.setProperty('--neo-display-weight', s.weight);
   root.style.setProperty('--neo-display-spacing', s.spacing);
   root.style.setProperty('--neo-display-transform', s.transform);

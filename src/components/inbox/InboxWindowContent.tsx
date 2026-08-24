@@ -97,7 +97,7 @@ const LIST_WIDTH_KEY = 'agensis.inbox.list-width';
  *
  * In REM because it is a readability floor, and readability is a character
  * count. It has to grow when the user turns the base font size up, exactly as
- * SINGLE_COLUMN_HIDE's own 42rem threshold already does — 270px at the 15px
+ * SINGLE_COLUMN_HIDE's own 42rem threshold already does — 288px at the 16px
  * default, 306px at 17px.
  */
 const MIN_DETAIL_REM = 18;
@@ -105,7 +105,7 @@ const MIN_DETAIL_REM = 18;
 /**
  * The rem→px conversion the drag clamp needs. Reads the root font size rather
  * than assuming 16: this app sets `html { font-size: var(--agensis-ui-font-size) }`,
- * so 1rem is 15px by default and anywhere from 12 to 18 by user setting.
+ * so 1rem is 16px by default and anywhere from 12 to 18 by user setting.
  */
 function minDetailPx(): number {
   if (typeof document === 'undefined') return MIN_DETAIL_REM * 16;

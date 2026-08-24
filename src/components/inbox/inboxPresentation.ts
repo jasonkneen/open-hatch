@@ -22,15 +22,15 @@ import type { InboxCategory } from '../../types';
 
 // --- Type scale -----------------------------------------------------------
 //
-// The app sets `html { font-size: var(--agensis-ui-font-size, 15px) }` and
+// The app sets `html { font-size: var(--agensis-ui-font-size, 16px) }` and
 // exposes that as a user setting (Settings → Appearance, 12–18px). Every other
 // surface is therefore sized in rem and grows with it: the sidebar's nav rows
 // are `text-sm`, so is a chat message body (components/ui/message.tsx), so is
 // the Activity detail.
 //
 // The inbox was the one surface written in absolute px (`text-[13px]` /
-// `text-[11px]`). At the default 15px base that is a coincidental match —
-// `text-sm` computes to 13.13px — so it looked right and nobody noticed. Turn
+// `text-[11px]`). At the default 16px base that is a coincidental match —
+// `text-sm` computes to 14px — so it looked right and nobody noticed. Turn
 // the base up and it stops being a match: measured at an 17px base, the sidebar
 // label renders 14.88px while the inbox row stayed frozen at 13.00px, which is
 // what makes the inbox read as a shrunken secondary panel next to it.
@@ -93,7 +93,7 @@ export const ROW_WASH_SELECTED = 'color-mix(in oklab, var(--card) 91%, var(--for
 /**
  * Row metrics: three text lines against a 2rem face. Tailwind spacing is rem,
  * and the row has no fixed height, so a larger base font size grows the type
- * AND the padding and the row simply gets taller — ~96px at the 15px default,
+ * AND the padding and the row simply gets taller — ~102px at the 16px default,
  * ~108px at 17px. Nothing here clamps a line back down to fit.
  */
 export const ROW_PADDING = 'px-3 py-3';
@@ -108,8 +108,8 @@ export const ROW_PADDING = 'px-3 py-3';
  * narrower than this (MAX_LIST_WIDTH in InboxWindowContent.tsx).
  *
  * In rem, not px: the comfortable measure for a column of text is a count of
- * CHARACTERS, so the cap has to grow when the type does. 42rem is 630px at the
- * 15px default (the 640px this used to be) and 714px at 17px.
+ * CHARACTERS, so the cap has to grow when the type does. 42rem is 672px at the
+ * 16px default and 714px at 17px.
  */
 export const LIST_COLUMN_CLASS = 'mx-auto w-full max-w-[42rem]';
 

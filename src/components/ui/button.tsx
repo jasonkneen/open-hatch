@@ -41,6 +41,17 @@ const buttonVariants = cva(
   }
 )
 
+function hasExplicitFullBorder(className: string | undefined) {
+  return className?.split(/\s+/).some(rawToken => {
+    const token = rawToken.split(':').pop() || rawToken
+    if (token === 'border') return true
+    if (!token.startsWith('border-')) return false
+    const suffix = token.slice('border-'.length)
+    if (suffix === '0' || suffix === 'none' || suffix === 'transparent') return false
+    return !/^[tblrxy](?:-|$)/.test(suffix)
+  }) ?? false
+}
+
 function Button({
   className,
   variant = "default",
@@ -58,6 +69,7 @@ function Button({
       data-slot="button"
       data-variant={variant}
       data-size={size}
+      data-bordered={variant === "outline" || hasExplicitFullBorder(className) ? "true" : undefined}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

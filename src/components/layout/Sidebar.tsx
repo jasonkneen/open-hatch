@@ -1907,8 +1907,8 @@ function SidebarFolderGroup({
      // text-sm, not text-xs. A folder is one of the things IN the workspace, the
      // same as the documents inside it and the same as Inbox/Tasks/Skills — it is
      // not a label for a group the way a section heading is. text-xs put it at
-     // exactly the section-heading size (11.25px against the items' 13.125px at a
-     // 15px UI font), so "Applets" read as a heading for its own contents.
+     // exactly the section-heading size (12px against the items' 14px at the
+     // default 16px UI font), so "Applets" read as a heading for its own contents.
       className="sidebar-folder-trigger flex min-w-0 flex-1 items-center gap-1 rounded-md px-1.5 py-1 text-left text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
       aria-controls={`${id}-content`}
      >

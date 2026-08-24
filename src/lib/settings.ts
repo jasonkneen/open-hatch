@@ -19,6 +19,7 @@ export interface AppSettings {
   ui_font_family: UiFontFamily;
   ui_base_font_size: number;
   ui_theme_preset: string;
+  ui_default_radius: string;
   ui_neo_theme: string;
   ui_normal_theme: string;
   ui_tw_theme: string;
@@ -35,9 +36,10 @@ const DEFAULTS: AppSettings = {
   notifications_desktop: true,
   notifications_agent_events: true,
   notifications_task_reminders: false,
-  ui_font_family: 'geist',
-  ui_base_font_size: 15,
+  ui_font_family: 'bricolage',
+  ui_base_font_size: 16,
   ui_theme_preset: 'neutral',
+  ui_default_radius: 'soft',
   ui_neo_theme: 'blueprint',
   ui_normal_theme: '',
   ui_tw_theme: 'gold',

@@ -36,8 +36,8 @@
  --sidebar-width: 240px;
  --header-height: 52px;
  --chat-panel-width: 380px;
- --agensis-ui-font-family: 'Geist Variable', Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
- --agensis-ui-font-size: 15px;
+ --agensis-ui-font-family: 'Bricolage Grotesque', 'Geist Variable', Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+ --agensis-ui-font-size: 16px;
  /* First-paint values only: applyUiAppearanceSettings() overwrites both as an
     INLINE style on :root as soon as it runs. Kept in step with DEFAULTS in
     src/lib/settings.ts so the panels do not visibly change opacity a frame
@@ -364,13 +364,13 @@
 :root[data-ui-theme="neo"] [data-slot="dialog-content"],
 :root[data-ui-theme="neo"] [data-slot="alert-dialog-content"],
 :root[data-ui-theme="neo"] [data-slot="popover-content"] {
- font-family: var(--neo-font, 'Space Grotesk', system-ui, -apple-system, sans-serif);
+ font-family: var(--neo-font, var(--agensis-ui-font-family, 'Bricolage Grotesque', system-ui, -apple-system, sans-serif));
 }
 
 :root[data-ui-theme="neo"] h1,
 :root[data-ui-theme="neo"] h2,
 :root[data-ui-theme="neo"] h3 {
- font-family: var(--neo-display, var(--neo-font, 'Space Grotesk', system-ui, -apple-system, sans-serif));
+ font-family: var(--neo-display, var(--neo-font, var(--agensis-ui-font-family, 'Bricolage Grotesque', system-ui, -apple-system, sans-serif)));
  font-weight: var(--neo-display-weight, 700);
  letter-spacing: var(--neo-display-spacing, -0.01em);
  text-transform: var(--neo-display-transform, none);
@@ -506,7 +506,7 @@
 :root[data-ui-theme="paper"] [data-slot="dialog-content"],
 :root[data-ui-theme="paper"] [data-slot="alert-dialog-content"],
 :root[data-ui-theme="paper"] [data-slot="popover-content"] {
- font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
+ font-family: var(--agensis-ui-font-family, 'Bricolage Grotesque', system-ui, -apple-system, sans-serif);
 }
 
 :root[data-ui-theme="paper"][data-theme="light"] {
@@ -1654,7 +1654,8 @@
    and paper its own for the header. So a base-scope density change reached
    exactly one theme — which is what happened when `.sidebar-action-row` went
    1.8rem -> 1.55rem and the sidebar the owner actually looks at did not move a
-   pixel. Measured in the compiled CSS at a 15px UI font, neo's row pitch was
+   pixel. Measured in the compiled CSS before the default moved to 16px, neo's
+   row pitch was
    40.8px against the base's 25.1px, and its section-header pitch 122px against
    80.7px: a sidebar 1.6x taller than the one the numbers were tuned on.
 
@@ -3390,13 +3391,13 @@ body {
 body {
  background-color: var(--canvas-base);
  color: var(--text-primary);
- font-family: 'Space Grotesk', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+ font-family: var(--agensis-ui-font-family, 'Bricolage Grotesque', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif);
  /* 1rem, NOT a hard px: `html` is set to var(--agensis-ui-font-size) (see the
     html rule near the end of this file), which the user's `ui_base_font_size`
     setting drives (settings.ts applyUiAppearanceSettings). A fixed px here was
     the one baseline that ignored that slider while every rem-based `text-*`
     class scaled — so bumping the setting grew the UI but left body prose
-    behind. `1rem` ties prose to the same single source. Default is 15px. */
+    behind. `1rem` ties prose to the same single source. Default is 16px. */
  font-size: 1rem;
  line-height: 1.5;
  /* 500, matching the settings nav the owner pointed at as the reference
@@ -3966,8 +3967,8 @@ body {
 }
 
 @theme inline {
- --font-heading: var(--font-sans);
- --font-sans: 'Geist Variable', sans-serif;
+ --font-heading: var(--agensis-ui-font-family, 'Bricolage Grotesque', sans-serif);
+ --font-sans: var(--agensis-ui-font-family, 'Bricolage Grotesque', sans-serif);
  --color-sidebar-ring: var(--sidebar-ring);
  --color-sidebar-border: var(--sidebar-border);
  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -4068,6 +4069,192 @@ body {
  --sidebar-accent-foreground: oklch(0.985 0 0);
  --sidebar-border: oklch(1 0 0 / 10%);
  --sidebar-ring: oklch(0.556 0 0);
+}
+
+/* ============================================================
+   Default family — softened brutal controls
+
+   This is the app's new first-run family. Its neutral light/dark ramp keeps
+   the surfaces quiet, while the controls retain a restrained version of the
+   offset edge used by the Brutal family.
+   ============================================================ */
+:root[data-ui-theme="default"][data-theme="light"] {
+ --canvas-base: #f8f8f8;
+ --canvas-elevated: #ffffff;
+ --canvas-raised: #f0f0f0;
+ --canvas-overlay: #ffffff;
+ --border: #e0e0e0;
+ --border-subtle: #eaeaea;
+ --border-strong: #cccccc;
+ --text-primary: #1a1a1a;
+ --text-secondary: #5a5a5a;
+ --text-muted: #9a9a9a;
+ --text-inverse: #ffffff;
+ --accent: var(--primary);
+ --accent-hover: color-mix(in srgb, var(--primary) 82%, var(--foreground) 18%);
+ --accent-subtle: color-mix(in srgb, var(--primary) 12%, transparent);
+ --accent-border: color-mix(in srgb, var(--primary) 32%, transparent);
+ --success: #3d7a5a;
+ --warning: #d4900a;
+ --error: #b8200c;
+ --background: #f8f8f8;
+ --foreground: #1a1a1a;
+ --card: #ffffff;
+ --card-foreground: #1a1a1a;
+ --popover: #ffffff;
+ --popover-foreground: #1a1a1a;
+ --primary: var(--foreground);
+ --primary-foreground: var(--background);
+ --secondary: #f0f0f0;
+ --secondary-foreground: #1a1a1a;
+ --muted: #f0f0f0;
+ --muted-foreground: #5a5a5a;
+ --sh-accent: color-mix(in srgb, var(--primary) 14%, var(--background));
+ --sh-accent-foreground: var(--foreground);
+ --sh-border: #e0e0e0;
+ --input: #e0e0e0;
+ --ring: var(--primary);
+ --sidebar: #ffffff;
+ --sidebar-foreground: #1a1a1a;
+ --sidebar-primary: var(--primary);
+ --sidebar-primary-foreground: var(--primary-foreground);
+ --sidebar-accent: #f0f0f0;
+ --sidebar-accent-foreground: #1a1a1a;
+ --sidebar-border: #e0e0e0;
+ --sidebar-ring: var(--primary);
+ --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 20px -12px rgba(0, 0, 0, 0.24);
+ --shadow-md: 0 2px 5px rgba(0, 0, 0, 0.08), 0 14px 28px -14px rgba(0, 0, 0, 0.28);
+ --shadow-lg: 0 4px 10px rgba(0, 0, 0, 0.1), 0 20px 42px -18px rgba(0, 0, 0, 0.32);
+ --shadow-window: 0 14px 30px -18px rgba(0, 0, 0, 0.34);
+ --chrome-cast: 1px 0 0 rgba(0, 0, 0, 0.1), 7px 0 14px -8px rgba(0, 0, 0, 0.2);
+ --chrome-cast-left: -7px 0 14px -8px rgba(0, 0, 0, 0.2);
+ --home-bg-image-opacity: 0.28;
+ --home-bg-overlay: linear-gradient(to bottom, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.08) 72%, var(--canvas-base));
+ --home-bg-vignette: radial-gradient(135% 105% at 50% 42%, transparent 44%, rgba(0, 0, 0, 0.1) 76%, rgba(0, 0, 0, 0.2) 100%);
+ --default-hard-shadow: 2px 2px 0 color-mix(in srgb, var(--foreground) 20%, transparent);
+ --default-hard-shadow-hover: 3px 3px 0 color-mix(in srgb, var(--foreground) 22%, transparent);
+}
+
+:root[data-ui-theme="default"][data-theme="dark"] {
+ --canvas-base: #0c0c0c;
+ --canvas-elevated: #141414;
+ --canvas-raised: #1c1c1c;
+ --canvas-overlay: #222222;
+ --border: #2a2a2a;
+ --border-subtle: #1f1f1f;
+ --border-strong: #3a3a3a;
+ --text-primary: #f2f2f2;
+ --text-secondary: #9a9a9a;
+ --text-muted: #565656;
+ --text-inverse: #0c0c0c;
+ --accent: var(--primary);
+ --accent-hover: color-mix(in srgb, var(--primary) 82%, white 18%);
+ --accent-subtle: color-mix(in srgb, var(--primary) 16%, transparent);
+ --accent-border: color-mix(in srgb, var(--primary) 38%, transparent);
+ --success: #65d7a0;
+ --warning: #f0b85d;
+ --error: #f27d5f;
+ --background: #0c0c0c;
+ --foreground: #f2f2f2;
+ --card: #141414;
+ --card-foreground: #f2f2f2;
+ --popover: #222222;
+ --popover-foreground: #f2f2f2;
+ --primary: var(--foreground);
+ --primary-foreground: var(--background);
+ --secondary: #1c1c1c;
+ --secondary-foreground: #f2f2f2;
+ --muted: #1c1c1c;
+ --muted-foreground: #9a9a9a;
+ --sh-accent: color-mix(in srgb, var(--primary) 18%, var(--background));
+ --sh-accent-foreground: var(--foreground);
+ --sh-border: #2a2a2a;
+ --input: #2a2a2a;
+ --ring: var(--primary);
+ --sidebar: #141414;
+ --sidebar-foreground: #f2f2f2;
+ --sidebar-primary: var(--primary);
+ --sidebar-primary-foreground: var(--primary-foreground);
+ --sidebar-accent: #1c1c1c;
+ --sidebar-accent-foreground: #f2f2f2;
+ --sidebar-border: #2a2a2a;
+ --sidebar-ring: var(--primary);
+ --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.24), 0 10px 22px -14px rgba(0, 0, 0, 0.54);
+ --shadow-md: 0 3px 8px rgba(0, 0, 0, 0.28), 0 16px 30px -16px rgba(0, 0, 0, 0.62);
+ --shadow-lg: 0 5px 12px rgba(0, 0, 0, 0.32), 0 22px 44px -18px rgba(0, 0, 0, 0.7);
+ --shadow-window: 0 14px 32px -18px rgba(0, 0, 0, 0.68);
+ --chrome-cast: 1px 0 0 rgba(0, 0, 0, 0.35), 8px 0 18px -8px rgba(0, 0, 0, 0.55);
+ --chrome-cast-left: -8px 0 18px -8px rgba(0, 0, 0, 0.55);
+ --home-bg-image-opacity: 0.16;
+ --home-bg-overlay: linear-gradient(to bottom, rgba(0, 0, 0, 0.14), rgba(0, 0, 0, 0.52) 72%, var(--canvas-base));
+ --home-bg-vignette: radial-gradient(135% 105% at 50% 42%, transparent 40%, rgba(0, 0, 0, 0.2) 74%, rgba(0, 0, 0, 0.42) 100%);
+ --default-hard-shadow: 2px 2px 0 color-mix(in srgb, var(--foreground) 24%, transparent);
+ --default-hard-shadow-hover: 3px 3px 0 color-mix(in srgb, var(--foreground) 30%, transparent);
+}
+
+:root[data-ui-theme="default"] {
+ --radius: 10px;
+ --radius-sm: 4px;
+ --radius-md: 6px;
+ --radius-lg: 8px;
+ --radius-xl: 12px;
+ --radius-2xl: 16px;
+ --radius-3xl: 20px;
+ --radius-4xl: 28px;
+ --default-radius-card: 8px;
+ --default-radius-modal: 10px;
+ --default-radius-toolbar: 14px;
+ --default-radius-control: 6px;
+ --default-radius-button: 9px;
+ background-image: radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 30rem);
+}
+
+:root[data-ui-theme="default"][data-default-radius="sharp"] {
+ --radius: 0px;
+ --radius-sm: 0px;
+ --radius-md: 0px;
+ --radius-lg: 0px;
+ --radius-xl: 0px;
+ --radius-2xl: 0px;
+ --radius-3xl: 0px;
+ --radius-4xl: 0px;
+ --default-radius-card: 0px;
+ --default-radius-modal: 0px;
+ --default-radius-toolbar: 0px;
+ --default-radius-control: 0px;
+ --default-radius-button: 0px;
+}
+
+:root[data-ui-theme="default"][data-default-radius="rounded"] {
+ --radius: 14px;
+ --radius-sm: 6px;
+ --radius-md: 10px;
+ --radius-lg: 14px;
+ --radius-xl: 18px;
+ --radius-2xl: 22px;
+ --radius-3xl: 28px;
+ --radius-4xl: 36px;
+ --default-radius-card: 14px;
+ --default-radius-modal: 16px;
+ --default-radius-toolbar: 20px;
+ --default-radius-control: 10px;
+ --default-radius-button: 14px;
+}
+
+:root[data-ui-theme="default"][data-default-radius="pill"] {
+ --radius: 14px;
+ --radius-sm: 8px;
+ --radius-md: 14px;
+ --radius-lg: 20px;
+ --radius-xl: 24px;
+ --radius-2xl: 28px;
+ --radius-3xl: 36px;
+ --radius-4xl: 44px;
+ --default-radius-card: 22px;
+ --default-radius-modal: 24px;
+ --default-radius-toolbar: 999px;
+ --default-radius-control: 14px;
+ --default-radius-button: 999px;
 }
 
 @layer base {
@@ -4325,7 +4512,7 @@ code {
 }
 
 html {
- font-size: var(--agensis-ui-font-size, 15px);
+ font-size: var(--agensis-ui-font-size, 16px);
 }
 
 body,
@@ -4333,7 +4520,7 @@ button,
 input,
 textarea,
 select {
- font-family: var(--agensis-ui-font-family, 'Geist Variable', Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+ font-family: var(--agensis-ui-font-family, 'Bricolage Grotesque', Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
 }
 
 /* .sidebar-section-trigger is deliberately NOT in this list any more. This rule
@@ -4380,6 +4567,127 @@ select {
  --neo-shadow-lg: 4px 4px 0 var(--neo-shadow-ink);
  --neo-shadow-x: 2px;
  --neo-shadow-y: 2px;
+}
+
+/* Default controls: the same tactile offset idea as ideation-canvas / Doop.
+   Only controls that already have a border get the offset; selection states
+   keep their existing background treatment instead of gaining a new frame. */
+:root[data-ui-theme="default"] body {
+ background-color: var(--canvas-base);
+ background-image: radial-gradient(circle at 18% 8%, color-mix(in srgb, var(--primary) 7%, transparent), transparent 30rem);
+}
+
+:root[data-ui-theme="default"] [data-slot="button"],
+:root[data-ui-theme="default"] [data-slot="toggle-group-item"],
+:root[data-ui-theme="default"] [data-slot="select-trigger"] {
+ border-radius: var(--default-radius-button) !important;
+ transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="outline"],
+:root[data-ui-theme="default"] [data-slot="toggle-group-item"],
+:root[data-ui-theme="default"] [data-slot="select-trigger"] {
+ border-color: color-mix(in srgb, var(--border-strong) 72%, var(--foreground) 28%);
+ background: var(--card);
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-bordered="true"],
+:root[data-ui-theme="default"] [data-slot="toggle-group-item"],
+:root[data-ui-theme="default"] [data-slot="select-trigger"] {
+ box-shadow: var(--default-hard-shadow) !important;
+}
+
+/* Filled primary actions are intentional calls to action, not selection
+   markers. Keep icon-only view toggles out of this treatment. */
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="default"]:not([data-size^="icon"]) {
+ box-shadow: var(--default-hard-shadow) !important;
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="ghost"]:not([data-bordered="true"]) {
+ border-color: transparent;
+ background: transparent;
+ box-shadow: none;
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="outline"]:hover,
+:root[data-ui-theme="default"] [data-slot="button"][data-bordered="true"]:hover,
+:root[data-ui-theme="default"] [data-slot="toggle-group-item"]:hover,
+:root[data-ui-theme="default"] [data-slot="select-trigger"]:hover {
+ transform: translate(-1px, -1px);
+ box-shadow: var(--default-hard-shadow-hover) !important;
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="default"]:not([data-size^="icon"]):hover {
+ transform: translate(-1px, -1px);
+ box-shadow: var(--default-hard-shadow-hover) !important;
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="outline"]:active,
+:root[data-ui-theme="default"] [data-slot="button"][data-bordered="true"]:active,
+:root[data-ui-theme="default"] [data-slot="toggle-group-item"]:active {
+ transform: translate(2px, 2px);
+ box-shadow: none !important;
+}
+
+:root[data-ui-theme="default"] [data-slot="button"][data-variant="default"]:not([data-size^="icon"]):active {
+ transform: translate(2px, 2px);
+ box-shadow: none !important;
+}
+
+/* Plain buttons (the settings cards and other small pickers) do not carry a
+   data-slot, but their existing `border` utility is still a useful semantic
+   boundary for the same tactile treatment. */
+:root[data-ui-theme="default"] button:not([data-slot="button"])[class~="border"]:not([data-variant="ghost"]) {
+ box-shadow: var(--default-hard-shadow) !important;
+ transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+}
+
+:root[data-ui-theme="default"] button:not([data-slot="button"])[class~="border"]:not([data-variant="ghost"]):hover {
+ transform: translate(-1px, -1px);
+ box-shadow: var(--default-hard-shadow-hover) !important;
+}
+
+:root[data-ui-theme="default"] button:not([data-slot="button"])[class~="border"]:not([data-variant="ghost"]):active {
+ transform: translate(2px, 2px);
+ box-shadow: none !important;
+}
+
+:root[data-ui-theme="default"] [data-slot="toggle-group-item"][data-state="on"] {
+ background: var(--sh-accent);
+ border-color: color-mix(in srgb, var(--primary) 54%, var(--border-strong) 46%);
+}
+
+:root[data-ui-theme="default"] [data-slot="card"],
+:root[data-ui-theme="default"] [data-slot="dialog-content"],
+:root[data-ui-theme="default"] [data-slot="alert-dialog-content"],
+:root[data-ui-theme="default"] [data-slot="popover-content"],
+:root[data-ui-theme="default"] [data-slot="dropdown-menu-content"],
+:root[data-ui-theme="default"] [data-slot="select-content"] {
+ border-radius: var(--default-radius-card) !important;
+ border-color: color-mix(in srgb, var(--border) 78%, var(--foreground) 22%);
+ background: var(--card);
+ box-shadow: var(--shadow-md);
+}
+
+:root[data-ui-theme="default"] [data-slot="input-group"],
+:root[data-ui-theme="default"] [data-slot="input"],
+:root[data-ui-theme="default"] [data-slot="textarea"],
+:root[data-ui-theme="default"] input:not([type="range"]):not([type="checkbox"]):not([type="radio"]),
+:root[data-ui-theme="default"] textarea,
+:root[data-ui-theme="default"] select {
+ border-radius: var(--default-radius-control);
+ border-color: var(--border);
+ background: var(--card);
+ box-shadow: 1px 1px 0 color-mix(in srgb, var(--foreground) 12%, transparent);
+}
+
+:root[data-ui-theme="default"] [data-window-surface] {
+ border-radius: var(--radius-xl);
+}
+
+/* Full/max-expanded windows are edge-to-edge, so their surface stays square in every theme. */
+[data-window-view-mode="full"] [data-window-surface] {
+ border-radius: 0 !important;
 }
 
 :root[data-ui-theme="neo"] [data-slot="button"],

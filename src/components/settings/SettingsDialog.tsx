@@ -26,6 +26,7 @@ import type { ThemeMode } from '../../hooks/useTheme';
 import type { Workspace } from '../../types';
 import { applyUiAppearanceSettings, getSettings, setSetting, type AppSettings, type NotificationLevel, type UiFontFamily } from '../../lib/settings';
 import { THEME_PRESETS, applyThemePreset } from '../../showcase/themePresets';
+import { DEFAULT_RADII, applyDefaultRadius, isDefaultRadius, type DefaultRadius } from '../../showcase/defaultTheme';
 import { NEO_THEMES, NEO_GROUPS, applyNeoTheme, resolveNeoStyle } from '../../showcase/neoThemes';
 import { NORMAL_THEMES, NORMAL_GROUPS, applyNormalTheme, clearNormalTheme, getStoredNormalTheme } from '../../showcase/normalThemes';
 import { TW_WORLDS, applyTwTheme, getStoredTwTheme } from '../../showcase/twThemes';
@@ -502,14 +503,18 @@ function AppearancePanel({
   const [fontFamily, setFontFamily] = useState<UiFontFamily>(initialSettings.ui_font_family);
   const [baseFontSize, setBaseFontSize] = useState(initialSettings.ui_base_font_size);
   const [themePreset, setThemePreset] = useState(initialSettings.ui_theme_preset);
+  const [defaultRadius, setDefaultRadius] = useState<DefaultRadius>(
+    isDefaultRadius(initialSettings.ui_default_radius) ? initialSettings.ui_default_radius : 'soft',
+  );
   const [neoTheme, setNeoTheme] = useState(initialSettings.ui_neo_theme);
   const [normalTheme, setNormalTheme] = useState(() => getStoredNormalTheme());
   const [twTheme, setTwTheme] = useState(() => getStoredTwTheme());
+  const isDefaultFamily = themeMode === 'default-light' || themeMode === 'default-dark' || themeMode === 'default-system';
   const isNeoFamily = themeMode === 'neo-light' || themeMode === 'neo-dark';
   const isNormalFamily = themeMode === 'normal-light' || themeMode === 'normal-dark';
   const isPaper = themeMode === 'paper-light' || themeMode === 'paper-dark';
   // Derive which style tab is active from the current mode
-  const themeStyleTab: 'normal' | 'brutal' = isNeoFamily ? 'brutal' : 'normal';
+  const themeStyleTab: 'default' | 'classic' | 'brutal' = isDefaultFamily ? 'default' : isNeoFamily ? 'brutal' : 'classic';
   const [panelTranslucency, setPanelTranslucency] = useState(initialSettings.ui_panel_translucency);
   const [sidebarTranslucency, setSidebarTranslucency] = useState(initialSettings.ui_sidebar_translucency);
   const [glassBlur, setGlassBlur] = useState(initialSettings.ui_glass_blur);
@@ -525,6 +530,7 @@ function AppearancePanel({
   ];
   // Active scheme value for normal tab: map normal-* back to plain light/dark
   const normalSchemeValue: ThemeMode = themeMode === 'normal-light' ? 'light' : themeMode === 'normal-dark' ? 'dark' : themeMode;
+  const defaultSchemeValue = themeMode === 'default-dark' ? 'dark' : themeMode === 'default-system' ? 'system' : 'light';
   const fontOptions: Array<{ id: UiFontFamily; label: string }> = [
     { id: 'geist', label: 'Geist' },
     { id: 'inter', label: 'Inter' },
@@ -578,19 +584,31 @@ function AppearancePanel({
       <Field>
         <FieldLabel>Theme</FieldLabel>
 
-        {/* Normal | Brutal tab bar */}
-        <div className="flex gap-1 rounded-lg border border-border bg-muted p-1">
+        {/* Default | Classic | Brutal tab bar */}
+        <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted p-1">
           <button
             type="button"
             onClick={() => {
-              if (isNeoFamily) {
+              if (!isDefaultFamily) {
+                const dark = document.documentElement.getAttribute('data-theme') === 'dark';
+                onThemeChange(dark ? 'default-dark' : 'default-light');
+              }
+            }}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${themeStyleTab === 'default' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            Default
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (themeStyleTab !== 'classic') {
                 const dark = document.documentElement.getAttribute('data-theme') === 'dark';
                 onThemeChange(isNormalFamily ? (dark ? 'normal-dark' : 'normal-light') : (dark ? 'dark' : 'light'));
               }
             }}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${themeStyleTab === 'normal' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${themeStyleTab === 'classic' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
-            Normal
+            Classic
           </button>
           <button
             type="button"
@@ -600,14 +618,93 @@ function AppearancePanel({
                 onThemeChange(dark ? 'neo-dark' : 'neo-light');
               }
             }}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${themeStyleTab === 'brutal' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition ${themeStyleTab === 'brutal' ? 'bg-background shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             Brutal
           </button>
         </div>
 
-        {/* Normal tab content */}
-        {themeStyleTab === 'normal' && (
+        {/* Default tab content */}
+        {themeStyleTab === 'default' && (
+          <div className="space-y-4">
+            <ToggleGroup
+              type="single"
+              value={defaultSchemeValue}
+              onValueChange={value => {
+                if (!value) return;
+                const next = value as 'light' | 'dark' | 'system';
+                onThemeChange(next === 'light' ? 'default-light' : next === 'dark' ? 'default-dark' : 'default-system');
+              }}
+              variant="outline"
+              className="grid w-full grid-cols-3"
+            >
+              <ToggleGroupItem value="light">Light</ToggleGroupItem>
+              <ToggleGroupItem value="dark">Dark</ToggleGroupItem>
+              <ToggleGroupItem value="system">System</ToggleGroupItem>
+            </ToggleGroup>
+
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Colour</div>
+              <ToggleGroup
+                type="single"
+                value={themePreset}
+                onValueChange={value => {
+                  if (!value) return;
+                  setThemePreset(value);
+                  setSetting('ui_theme_preset', value);
+                  applyThemePreset(value);
+                }}
+                variant="outline"
+                className="grid w-full grid-cols-2 sm:grid-cols-3"
+              >
+                {THEME_PRESETS.map(preset => (
+                  <ToggleGroupItem key={preset.id} value={preset.id} className="gap-2">
+                    <span className="size-3 rounded-sm border border-border" style={{ background: preset.swatch }} />
+                    {preset.label}
+                  </ToggleGroupItem>
+                ))}
+              </ToggleGroup>
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Corners</div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" role="listbox" aria-label="Corner rounding">
+                {DEFAULT_RADII.map(radius => {
+                  const active = defaultRadius === radius.id;
+                  return (
+                    <button
+                      key={radius.id}
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      title={radius.description}
+                      onClick={() => {
+                        setDefaultRadius(radius.id);
+                        setSetting('ui_default_radius', radius.id);
+                        applyDefaultRadius(radius.id);
+                      }}
+                      className={`flex min-w-0 flex-col items-center gap-2 rounded-md border px-2 py-2.5 text-center transition ${active ? 'border-primary bg-primary/10 ring-2 ring-primary' : 'border-border hover:bg-accent'}`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="h-7 w-full border border-border bg-muted"
+                        style={{ borderRadius: radius.previewPx }}
+                      />
+                      <span className="text-xs font-semibold">{radius.label}</span>
+                      <span className="text-[10px] leading-tight text-muted-foreground">{radius.description}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <FieldDescription>Soft is the default. This changes the app’s control and panel corners without changing your colour choice.</FieldDescription>
+            </div>
+
+            <FieldDescription>Default keeps the app’s existing functions and palettes, with softer offset controls inspired by the ideation-canvas system.</FieldDescription>
+          </div>
+        )}
+
+        {/* Classic tab content */}
+        {themeStyleTab === 'classic' && (
           <div className="space-y-4">
             {/* Scheme sub-toggle */}
             <ToggleGroup
@@ -701,7 +798,7 @@ function AppearancePanel({
               </div>
             )}
 
-            {/* Normal theme grid */}
+            {/* Classic theme grid */}
             <div className="space-y-3">
               {NORMAL_GROUPS.map(group => (
                 <div key={group} className="space-y-1.5">
@@ -811,7 +908,7 @@ function AppearancePanel({
                           </span>
                           <span
                             className="truncate font-medium"
-                            style={{ fontFamily: profile.display, fontWeight: profile.weight, letterSpacing: profile.spacing, textTransform: profile.transform as 'uppercase' | 'none' | 'capitalize' | 'lowercase' }}
+                            style={{ fontWeight: profile.weight, letterSpacing: profile.spacing, textTransform: profile.transform as 'uppercase' | 'none' | 'capitalize' | 'lowercase' }}
                           >{t.label}</span>
                           {active && (
                             <span className="ml-auto flex size-4 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">

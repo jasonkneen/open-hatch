@@ -2160,10 +2160,10 @@ function dialogParticipantKey(participant: { id?: unknown; kind?: unknown; agent
                 when a side panel is open. The composer sits inside the shell's
                 own `p-2`, so without a matching inset here the transcript ran
                 flush to the surface edge while the composer sat one step in on
-                each side: same centre line, 15px narrower, visibly two columns
+                each side: same centre line, 16px narrower, visibly two columns
                 instead of one. It has to be the same `0.5rem` the shell uses,
-                not a hardcoded 8 — this app's root font-size is 15px, so `p-2`
-                computes to 7.5px and a literal would be half a pixel out. */}
+                not a hardcoded 8 — this app's default root font-size is 16px,
+                but the setting can change it. */}
             <MessageScrollerViewport
               onScroll={handleScrollerScroll}
               className="px-2 transition-[padding] ease-out motion-reduce:transition-none"
