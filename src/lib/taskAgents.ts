@@ -8,6 +8,7 @@ export interface TaskCommentAuthor {
   label: string;
   email?: string;
   agentId?: string;
+  avatar?: string | null;
 }
 
 /**
@@ -26,7 +27,7 @@ export function resolveTaskCommentAuthor(
 ): TaskCommentAuthor {
   if (comment.agent_id) {
     const agent = ctx.agents.find(a => a.id === comment.agent_id);
-    return { kind: 'agent', label: agent?.name || 'Agent', agentId: comment.agent_id };
+    return { kind: 'agent', label: agent?.name || 'Agent', agentId: comment.agent_id, avatar: agent?.avatar };
   }
   if (comment.user_id && ctx.currentUserId && comment.user_id === ctx.currentUserId) {
     return { kind: 'you', label: 'You', email: ctx.currentUserEmail };

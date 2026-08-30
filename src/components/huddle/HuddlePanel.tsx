@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/message-scroller';
 import { Spinner } from '@/components/ui/spinner';
 import { MarkdownContent } from '../chat/MarkdownContent';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import { ToolStepGroup } from '../chat/ToolStepGroup';
 import { buildTranscriptRows } from '../chat/toolSteps';
 import { COMPOSER_ADDON_CLASS, COMPOSER_SHELL_CLASS, COMPOSER_TEXTAREA_CLASS } from '@/lib/composerStyles';
@@ -176,7 +177,7 @@ export function HuddlePanel({
                     }
                     return (
                       <MessageScrollerItem key={row.message.id} scrollAnchor={isLastRow}>
-                        <HuddleBubble msg={row.message} />
+                          <HuddleBubble msg={row.message} agentAvatar={huddleAgentAvatar(agents, row.message)} />
                       </MessageScrollerItem>
                     );
                   })}
@@ -242,7 +243,15 @@ function PanelNotice({ title, body }: { title: string; body: string }) {
   );
 }
 
-function HuddleBubble({ msg }: { msg: Message }) {
+function huddleAgentAvatar(agents: HuddleAgentOption[], message: Message): string | null {
+  if (message.sender_kind !== 'agent' && message.role !== 'assistant') return null;
+  const key = String(message.sender_id || message.sender_name || '').trim().toLowerCase();
+  if (!key) return null;
+  return agents.find(agent => [agent.id, agent.handle, agent.name]
+    .some(value => String(value || '').trim().toLowerCase() === key))?.avatar || null;
+}
+
+function HuddleBubble({ msg, agentAvatar }: { msg: Message; agentAvatar?: string | null }) {
   const isUser = msg.role === 'user';
   const content = typeof msg.content === 'string' ? msg.content : '';
   const placeholder = isActivityPlaceholderMessage(msg);
@@ -256,7 +265,15 @@ function HuddleBubble({ msg }: { msg: Message }) {
   return (
     <div className="chat-thread-message flex min-w-0 gap-2 rounded-md px-2 py-1.5 hover:bg-muted/40">
       <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+        {isUser ? <User className="size-3.5" /> : msg.sender_kind === 'agent' || msg.role === 'assistant' ? (
+          <AgentAvatar
+            avatar={agentAvatar}
+            name={senderName}
+            initials={senderName.slice(0, 2).toUpperCase()}
+            className="size-7 rounded-md"
+            fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+          />
+        ) : <Bot className="size-3.5" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">

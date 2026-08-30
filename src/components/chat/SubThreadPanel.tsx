@@ -2,6 +2,7 @@ import { Bot, Check, MessageSquare, Pencil, Plus, Send, Trash2, User, X } from '
 import React, { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { ChatArtifact, extractHtmlArtifact } from './ChatArtifact';
 import { SessionStopButton } from './StopAgentButton';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { MarkdownContent } from './MarkdownContent';
 import { ReactionBar } from './ReactionBar';
 import { QueuedPill, SeenPill } from './SeenPill';
@@ -347,7 +348,13 @@ export function SubThreadPanel({
               className="inline-flex h-5 items-center gap-1 rounded-md bg-muted px-2 text-[11px] text-muted-foreground hover:text-foreground"
               onClick={() => onAgentProfile?.(p.agent_id || p.handle || p.name || '')}
             >
-              <Bot className="size-3" />
+              <AgentAvatar
+                avatar={agents.find(agent => agent.id === p.agent_id || agent.handle === p.handle)?.avatar}
+                name={p.name || p.handle}
+                initials={(p.name || p.handle || 'A').slice(0, 2).toUpperCase()}
+                className="size-5 rounded"
+                fallbackClassName="bg-transparent text-[8px] text-muted-foreground"
+              />
               {p.handle || p.name}
             </button>
           ))}
@@ -399,6 +406,7 @@ export function SubThreadPanel({
                         <SubThreadBubble
                           msg={row.message}
                           accent={resolveMessageAccent?.(row.message)}
+                          agentAvatar={agentAvatarForMessage(agents, row.message)}
                           onAgentProfile={onAgentProfile}
                           currentUserId={readOnly ? null : currentUserId}
                           isStreaming={streaming && isLastRow && row.message.role === 'assistant'}
@@ -601,9 +609,18 @@ export function SubThreadPanel({
 // same branch, so there are no pills to click.
 const NOOP_TOGGLE = () => {};
 
+function agentAvatarForMessage(agents: WorkspaceAgent[], message: ChatMessage): string | null {
+  if (message.sender_kind !== 'agent' && message.role !== 'assistant') return null;
+  const key = String(message.sender_id || message.sender_name || '').trim().toLowerCase();
+  if (!key) return null;
+  return agents.find(agent => [agent.id, agent.handle, agent.name]
+    .some(value => String(value || '').trim().toLowerCase() === key))?.avatar || null;
+}
+
 export function SubThreadBubble({
   msg,
   accent,
+  agentAvatar,
   onAgentProfile,
   isStreaming,
   currentUserId,
@@ -617,6 +634,7 @@ export function SubThreadBubble({
 }: {
   msg: ChatMessage;
   accent?: string;
+  agentAvatar?: string | null;
   onAgentProfile?: (agentIdOrHandle: string) => void;
   isStreaming?: boolean;
   currentUserId?: string | null;
@@ -676,7 +694,15 @@ export function SubThreadBubble({
       style={accentStyle}
     >
       <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+        {isUser ? <User className="size-3.5" /> : msg.sender_kind === 'agent' || msg.role === 'assistant' ? (
+          <AgentAvatar
+            avatar={agentAvatar}
+            name={senderName}
+            initials={senderName.slice(0, 2).toUpperCase()}
+            className="size-7 rounded-md"
+            fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+          />
+        ) : <Bot className="size-3.5" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">

@@ -32,6 +32,7 @@ import { usePaneSplit } from '../../hooks/usePaneSplit';
 import { describeSkillProvenance, type WorkspaceSkillDraft } from '../../lib/workspaceSkills';
 import { viewPreferenceKey } from '../../lib/viewPreferences';
 import { WorkspaceSkillEditor } from './WorkspaceSkillEditor';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { MarkdownContent } from '../chat/MarkdownContent';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,9 +46,9 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty';
 
-// One agent on a skill row. Initials on the agent's own accent colour — the
-// same identity the workspace tiles and agent avatars already use, and never
-// an emoji.
+// One agent on a skill row. The selected avatar (automatic Blobatar by
+// default) carries identity; initials remain only as a fallback for old or
+// explicit non-image avatar keys.
 //
 // The advertised/configured distinction is FILL vs OUTLINE, because it is the
 // answer to "which agents can actually use this": a filled chip is a live
@@ -81,7 +82,13 @@ function AgentChip({ agent, onOpen }: { agent: SkillAgentRef; onOpen: () => void
         style={{ backgroundColor: agent.color }}
         aria-hidden="true"
       >
-        {agent.initials}
+        <AgentAvatar
+          avatar={agent.avatar}
+          name={agent.name}
+          initials={agent.initials}
+          className="size-4 rounded-full"
+          fallbackClassName="bg-transparent text-[8px] text-white"
+        />
       </span>
       <span className="truncate">{agent.name}</span>
     </span>
@@ -612,7 +619,13 @@ export function SkillsWindowContent({ agents, agentConnections, systemCapabiliti
                             style={{ backgroundColor: agent.color }}
                             aria-hidden="true"
                           >
-                            {agent.initials}
+                            <AgentAvatar
+                              avatar={agent.avatar}
+                              name={agent.name}
+                              initials={agent.initials}
+                              className="size-5 rounded-full"
+                              fallbackClassName="bg-transparent text-[9px] text-white"
+                            />
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm text-foreground">{agent.name}</div>

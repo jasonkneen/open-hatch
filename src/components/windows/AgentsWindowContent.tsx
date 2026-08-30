@@ -100,7 +100,7 @@ import {
   type AgentVoicePreference,
 } from '../../lib/agentVoice';
 import { useCartesiaVoices } from '../../hooks/useCartesiaVoices';
-import { useAgentTemplates } from '../../hooks/useAgentTemplates';
+import { useAgentTemplates, type AgentBundleReview } from '../../hooks/useAgentTemplates';
 import { useWorkspaceSkills } from '../../hooks/useWorkspaceSkills';
 import {
   AgentMarketplaceSection,
@@ -111,7 +111,13 @@ import {
 // box above it is the real control.
 const VOICE_OPTION_LIMIT = 60;
 import { AGENT_ACCENT_CHOICES, DEFAULT_AGENT_ACCENT, agentAccentColor, agentAccentPaletteColor, agentAccentStyle, validAgentAccentColor } from '../../lib/agentAccent';
-import { AGENT_AVATAR_CHOICES } from '../../lib/agentAvatars';
+import {
+  AGENT_AVATAR_CHOICES,
+  DEFAULT_AGENT_AVATAR,
+  automaticAgentAvatar,
+  isAutomaticAgentAvatar,
+  resolveAgentAvatar,
+} from '../../lib/agentAvatars';
 import { fetchFeaturedOpenPets, isImageAvatar, isPetSpritesheetAvatar, openPetAvatarSrc, renderablePetAssetUrl, type OpenPet } from '../../lib/openpets';
 import {
   AGENT_TEMPLATES,
@@ -127,16 +133,20 @@ import {
   executionRuntimeDisplayLabel,
   resolveFormRuntimeSelection,
   runtimeChoicesFromConnections,
+  storedToGalleryTemplate,
   type AgentFormRuntimeValue,
   type AgentRuntimeChoice,
   type AgentTemplate,
 } from '../../lib/agentTemplates';
 import {
   TEMPLATE_IMPORT_NOTE,
-  buildTemplateExport,
   parseTemplateExport,
-  templateExportFilename,
 } from '../../lib/agentTemplateTransfer';
+import {
+  agentBundleFilename,
+  buildAgentBundle,
+  parseAgentBundle,
+} from '../../lib/agentBundleTransfer';
 import { MarkdownContent } from '../chat/MarkdownContent';
 import { SkillChipsInput } from '../agents/SkillChipsInput';
 import { AgentPurposeFields } from '../agents/AgentPurposeFields';
@@ -275,7 +285,9 @@ function agentFormUpdates(form: AgentEditForm): Partial<WorkspaceAgent> {
   const { runtime, acpHarness } = resolveFormRuntimeSelection(form.runtime);
   return {
     name: form.name.trim(),
-    avatar: form.avatar.trim() || DEFAULT_AGENT_AVATAR,
+    avatar: isAutomaticAgentAvatar(form.avatar)
+      ? automaticAgentAvatar(form.name)
+      : form.avatar.trim(),
     openpet_avatar_id: form.openPetAvatarId,
     accent_color: validAgentAccentColor(form.accentColor),
     handle: form.handle.trim() || agentHandle(form.name),
@@ -295,7 +307,6 @@ function agentFormUpdates(form: AgentEditForm): Partial<WorkspaceAgent> {
   };
 }
 
-const DEFAULT_AGENT_AVATAR = 'AI';
 const AGENT_ICON_CHOICES: Array<{ value: string; label: string; icon: LucideIcon }> = [
   { value: 'icon:bot', label: 'Bot', icon: Bot },
   { value: 'icon:sparkles', label: 'Sparkles', icon: Sparkles },
@@ -415,6 +426,10 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
   const [createStep, setCreateStep] = useState<null | 'choose' | 'form'>(null);
   const [templateQuery, setTemplateQuery] = useState('');
   const [templateCategory, setTemplateCategory] = useState('All');
+  const [agentBundleBytes, setAgentBundleBytes] = useState<Uint8Array | null>(null);
+  const [agentBundleReview, setAgentBundleReview] = useState<AgentBundleReview | null>(null);
+  const [agentBundleBusy, setAgentBundleBusy] = useState(false);
+  const [agentBundleDropActive, setAgentBundleDropActive] = useState(false);
   const [connectAgentId, setConnectAgentId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newAvatar, setNewAvatar] = useState(DEFAULT_AGENT_AVATAR);
@@ -685,7 +700,9 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
     try {
       created = await onCreateAgent({
         name: newName.trim(),
-        avatar: newAvatar.trim() || DEFAULT_AGENT_AVATAR,
+        avatar: isAutomaticAgentAvatar(newAvatar)
+          ? automaticAgentAvatar(newName)
+          : newAvatar.trim(),
         openpet_avatar_id: newOpenPetAvatarId,
         accent_color: validAgentAccentColor(newAccentColor),
         handle: newHandle.trim() || agentHandle(newName),
@@ -727,7 +744,13 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
   // empty list when the route is unreachable, so the gallery degrades to exactly
   // today's behaviour rather than showing an error — that is also the rollback
   // path if the server is reverted.
-  const { templates: authoredTemplates, saveAgentAsTemplate, importTemplate } = useAgentTemplates(workspaceId);
+  const {
+    templates: authoredTemplates,
+    saveAgentAsTemplate,
+    importTemplate,
+    previewAgentBundle,
+    importAgentBundle,
+  } = useAgentTemplates(workspaceId);
   const galleryTemplates = useMemo(
     () => mergeTemplateSources(AGENT_TEMPLATES, authoredTemplates),
     [authoredTemplates],
@@ -777,26 +800,50 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
     useState<{ ok: boolean; text: string } | null>(null);
 
   const handleExportTemplate = (stored: StoredAgentTemplate) => {
-    const envelope = buildTemplateExport(stored);
-    const blob = new Blob([`${JSON.stringify(envelope, null, 2)}\n`], { type: 'application/json' });
+    const bundle = buildAgentBundle(stored, workspaceSkillStore.skills);
+    const blob = new Blob([bundle.bytes], { type: 'application/vnd.agensis.agent-bundle' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = templateExportFilename(stored);
+    link.download = agentBundleFilename(stored);
     link.click();
     // Revoked on the next tick, not immediately: revoking before the browser
     // has started the download cancels it in WebKit.
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    setTemplateTransferMessage({ ok: true, text: `Exported ${stored.name}.` });
+    const omitted = bundle.omittedSkillNames.length > 0
+      ? ` ${bundle.omittedSkillNames.length} requested skill${bundle.omittedSkillNames.length === 1 ? '' : 's'} still need setup here.`
+      : '';
+    setTemplateTransferMessage({ ok: true, text: `Exported ${stored.name} as a compressed .agn bundle.${omitted}` });
   };
 
-  const handleImportTemplateFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    // Cleared straight away so choosing the SAME file twice fires change again;
-    // without this, a failed import cannot be retried after fixing the file.
-    event.target.value = '';
-    if (!file) return;
+  const handleTemplateFile = useCallback(async (file: File) => {
     setTemplateTransferMessage(null);
+    setAgentBundleReview(null);
+    setAgentBundleBytes(null);
+    const isBundle = file.name.toLowerCase().endsWith('.agn')
+      || file.type === 'application/vnd.agensis.agent-bundle';
+    if (isBundle) {
+      setAgentBundleBusy(true);
+      try {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const local = parseAgentBundle(bytes);
+        if (!local.ok) {
+          setTemplateTransferMessage({ ok: false, text: local.error });
+          return;
+        }
+        const { review, error } = await previewAgentBundle(bytes);
+        if (error || !review) {
+          setTemplateTransferMessage({ ok: false, text: error || 'Could not review that bundle.' });
+          return;
+        }
+        setAgentBundleBytes(bytes);
+        setAgentBundleReview(review);
+      } finally {
+        setAgentBundleBusy(false);
+      }
+      return;
+    }
+
     const text = await file.text().catch(() => '');
     const parsed = parseTemplateExport(text);
     if (!parsed.ok) {
@@ -807,7 +854,59 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
     setTemplateTransferMessage(failure
       ? { ok: false, text: failure }
       : { ok: true, text: 'Imported. It is in the list below.' });
+  }, [importTemplate, previewAgentBundle]);
+
+  const handleImportTemplateFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Cleared straight away so choosing the SAME file twice fires change again;
+    // without this, a failed import cannot be retried after fixing the file.
+    event.target.value = '';
+    if (file) await handleTemplateFile(file);
   };
+
+  const handleAgentBundleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setAgentBundleDropActive(false);
+    const file = event.dataTransfer.files?.[0];
+    if (file) void handleTemplateFile(file);
+  };
+
+  const confirmAgentBundleImport = async () => {
+    if (!agentBundleBytes || !agentBundleReview || agentBundleReview.conflicts.length > 0 || agentBundleBusy) return;
+    setAgentBundleBusy(true);
+    const { result, error } = await importAgentBundle(agentBundleBytes);
+    setAgentBundleBusy(false);
+    if (error || !result?.template) {
+      setTemplateTransferMessage({ ok: false, text: error || 'Could not import that bundle.' });
+      return;
+    }
+    await workspaceSkillStore.refresh();
+    applyTemplate(storedToGalleryTemplate(result.template));
+    setAgentBundleBytes(null);
+    setAgentBundleReview(null);
+    setTemplateTransferMessage({
+      ok: true,
+      text: `Imported ${result.template.name}. Review the form before creating the agent.`,
+    });
+  };
+
+  // The desktop shell sends a file here when an .agn is double-clicked in the
+  // file manager, or when a second .agn is opened while agensis is already
+  // running. The same review path handles it as a browser drop.
+  useEffect(() => {
+    const onOpen = window.electronAPI?.onAgentBundleOpen;
+    if (!onOpen) return;
+    return onOpen(payload => {
+      if (payload.error || !payload.bytes) {
+        setTemplateTransferMessage({ ok: false, text: payload.error || 'Could not open that .agn bundle.' });
+        return;
+      }
+      const file = new File([payload.bytes], payload.name || 'agent.agn', {
+        type: 'application/vnd.agensis.agent-bundle',
+      });
+      void handleTemplateFile(file);
+    });
+  }, [handleTemplateFile]);
 
   // Which agent the share-to-marketplace dialog is open for. Publishing is
   // manage-gated server-side; the dialog reports a 403 as what it is.
@@ -899,7 +998,30 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
 
       <div className="agents-window-body min-h-0 flex-1 overflow-hidden p-3">
         {createStep === 'choose' ? (
-          <div className="flex h-full min-h-0 flex-col rounded-lg border bg-card/55 backdrop-blur-md">
+          <div
+            className={cn(
+              'relative flex h-full min-h-0 flex-col rounded-lg border bg-card/55 backdrop-blur-md',
+              agentBundleDropActive && 'border-primary bg-primary/5',
+            )}
+            onDragEnter={event => {
+              if (event.dataTransfer.types.includes('Files')) setAgentBundleDropActive(true);
+            }}
+            onDragOver={event => {
+              if (event.dataTransfer.types.includes('Files')) {
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'copy';
+              }
+            }}
+            onDragLeave={event => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setAgentBundleDropActive(false);
+            }}
+            onDrop={handleAgentBundleDrop}
+          >
+            {agentBundleDropActive && (
+              <div className="pointer-events-none absolute inset-2 z-20 grid place-items-center rounded-lg border-2 border-dashed border-primary bg-background/80 text-sm font-medium text-primary">
+                Drop a compressed .agn bundle to review it
+              </div>
+            )}
             <div className="flex h-11 shrink-0 items-center gap-2 border-b px-3">
               <Button type="button" variant="ghost" size="icon-xs" onClick={() => setCreateStep(null)} aria-label="Back to agents">
                 <ArrowLeft />
@@ -936,10 +1058,10 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
                     already has needs no such request. */}
                 <label className="control-outer-ring inline-flex cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-card/40 px-2.5 py-1 text-xs font-medium text-muted-foreground transition hover:bg-muted/50 hover:text-foreground">
                   <Upload className="size-3.5" />
-                  Import a template
+                  Import a template or .agn bundle
                   <input
                     type="file"
-                    accept="application/json,.json"
+                    accept=".agn,application/vnd.agensis.agent-bundle,application/json,.json"
                     className="sr-only"
                     onChange={event => { void handleImportTemplateFile(event); }}
                   />
@@ -959,6 +1081,80 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
                     : 'border-destructive/40 bg-destructive/10 text-destructive',
                 )}>
                   {templateTransferMessage.text}
+                </div>
+              )}
+              {agentBundleReview && (
+                <div className="mb-3 rounded-lg border border-primary/40 bg-primary/5 p-3 text-xs">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-foreground">Review agent bundle</div>
+                      <div className="mt-0.5 text-muted-foreground">
+                        {String(agentBundleReview.template.name || 'Untitled agent')} · compressed {Math.ceil(agentBundleReview.compressedBytes / 1024)} KB
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-muted-foreground hover:text-foreground"
+                      onClick={() => { setAgentBundleReview(null); setAgentBundleBytes(null); }}
+                      aria-label="Cancel bundle import"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  </div>
+                  <p className="mt-2 max-h-20 overflow-y-auto whitespace-pre-wrap text-muted-foreground">
+                    {String(agentBundleReview.template.systemPrompt || agentBundleReview.template.description || 'No prompt supplied.')}
+                  </p>
+                  <div className="mt-2 space-y-1">
+                    <div className="font-medium text-foreground">Included skills</div>
+                    {agentBundleReview.skills.length === 0 ? (
+                      <div className="text-muted-foreground">None. Named skills remain setup requirements.</div>
+                    ) : agentBundleReview.skills.map(skill => (
+                      <div key={skill.name} className="flex items-center justify-between gap-2 text-muted-foreground">
+                        <span className="truncate">{skill.name}</span>
+                        <span className={cn(
+                          'shrink-0',
+                          skill.status === 'conflict' ? 'text-destructive' : 'text-foreground',
+                        )}>
+                          {skill.status === 'add' ? 'will add' : skill.status === 'reuse' ? 'already here' : 'conflict'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  {agentBundleReview.requirements.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      <div className="font-medium text-foreground">Setup here</div>
+                      {agentBundleReview.requirements.map(requirement => (
+                        <div key={requirement.name} className="flex items-center justify-between gap-2 text-muted-foreground">
+                          <span className="truncate">{requirement.name}</span>
+                          <span className={requirement.status === 'needs_setup' ? 'text-amber-600 dark:text-amber-300' : 'text-foreground'}>
+                            {requirement.status === 'needs_setup' ? 'needs setup' : requirement.status === 'embedded' ? 'included' : 'available'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => { void confirmAgentBundleImport(); }}
+                      disabled={agentBundleBusy || agentBundleReview.conflicts.length > 0}
+                    >
+                      {agentBundleBusy ? 'Importing…' : 'Import bundle'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setAgentBundleReview(null); setAgentBundleBytes(null); }}
+                      disabled={agentBundleBusy}
+                    >
+                      Cancel
+                    </Button>
+                    {agentBundleReview.conflicts.length > 0 && (
+                      <span className="text-destructive">Resolve the skill conflict before importing.</span>
+                    )}
+                  </div>
                 </div>
               )}
               <div className="relative mb-2">
@@ -1307,7 +1503,7 @@ export const AgentsWindowContent = memo(function AgentsWindowContent({
                             rounded clip or the corner radius crops it to a crescent. */}
                         <span className="relative grid size-16 shrink-0 place-items-center">
                           <span className="grid size-full place-items-center overflow-hidden rounded-2xl bg-muted text-2xl ring-1 ring-inset ring-black/5 dark:ring-white/10">
-                            <AgentAvatarPreview value={agent.avatar || DEFAULT_AGENT_AVATAR} className="size-full" />
+                            <AgentAvatarPreview value={agent.avatar} seed={agent.name} className="size-full" />
                           </span>
                           {live && (
                             <span
@@ -1869,7 +2065,7 @@ function AgentForm({
         <Field>
           <FieldLabel>Preview</FieldLabel>
           <div className="grid aspect-square place-items-center overflow-hidden rounded-xl border bg-muted text-lg font-semibold">
-            <AgentAvatarPreview value={avatar} className="size-full" />
+            <AgentAvatarPreview value={avatar} seed={name} className="size-full" />
           </div>
         </Field>
         <Field>
@@ -1901,6 +2097,18 @@ function AgentForm({
         </TabsList>
         <TabsContent value="icon" className="mt-0">
           <div className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2">
+            <button
+              type="button"
+              className={cn(
+                'flex aspect-square items-center justify-center rounded-lg border bg-muted/40 p-1 transition hover:border-primary/60',
+                isAutomaticAgentAvatar(avatar) && 'border-primary ring-2 ring-primary/40',
+              )}
+              onClick={() => onAvatarChange(DEFAULT_AGENT_AVATAR)}
+              title="Automatic Blobatar avatar"
+              aria-label="Use automatic Blobatar avatar"
+            >
+              <AgentAvatarPreview value={DEFAULT_AGENT_AVATAR} seed={name} className="size-full" />
+            </button>
             {AGENT_ICON_CHOICES.map(choice => {
               const Icon = choice.icon;
               return (
@@ -2268,7 +2476,7 @@ function AgentDetailPane({
     if (!agent) return;
     const seed = {
       name: agent.name,
-      avatar: agent.avatar || DEFAULT_AGENT_AVATAR,
+      avatar: resolveAgentAvatar(agent.avatar, agent.name),
       openPetAvatarId: agent.openpet_avatar_id || '',
       accentColor: agentAccentColor(agent),
       handle: agent.handle || agentHandle(agent.name),
@@ -2528,7 +2736,7 @@ function AgentDetailPane({
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="agent-detail-summary flex min-w-0 items-stretch gap-3 rounded-lg border bg-muted/25 p-3">
           <div className="agent-detail-avatar grid min-h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-xl bg-muted text-lg font-semibold sm:w-28">
-            <AgentAvatarPreview value={agent.avatar || DEFAULT_AGENT_AVATAR} className="size-full" />
+            <AgentAvatarPreview value={agent.avatar} seed={agent.name} className="size-full" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate text-base font-semibold">{agent.name}</div>
@@ -4362,8 +4570,10 @@ function formatRelativeTime(value?: string | null) {
 // "does this model survive a runtime change" rule are testable without
 // mounting this window. See modelOptionsForRuntime.
 
-function AgentAvatarPreview({ value, className }: { value?: string | null; className?: string }) {
-  const avatar = value || DEFAULT_AGENT_AVATAR;
+function AgentAvatarPreview({ value, seed, className }: { value?: string | null; seed?: string | null; className?: string }) {
+  const avatar = isAutomaticAgentAvatar(value)
+    ? automaticAgentAvatar(seed)
+    : resolveAgentAvatar(value, seed);
   const iconChoice = getAgentIconChoice(avatar);
   if (isPetSpritesheetAvatar(avatar)) {
     return (

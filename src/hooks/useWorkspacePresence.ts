@@ -8,6 +8,8 @@ export type WorkspacePresenceUser = {
   name: string;
   color: string;
   kind?: 'user' | 'agent';
+  /** Resolved agent avatar marker or explicit avatar value, when this is an agent. */
+  avatar?: string | null;
   status?: string;
   isCurrentUser?: boolean;
   /**
@@ -133,6 +135,7 @@ export function useWorkspacePresence({
           name: agent?.name || connection.name || connection.handle,
           color: colorFromSeed(id),
           kind: 'agent',
+          avatar: agent?.avatar || null,
           status: connection.status,
           agentId: connection.agent_id || null,
           handle: connection.handle || null,

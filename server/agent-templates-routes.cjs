@@ -136,8 +136,9 @@ function createAgentTemplates(deps = {}) {
   * and a caller that could claim source='authored' on an imported body would
   * erase the only record of where the prose came from.
   */
- async function writeTemplate({ workspaceId, template, userId, source, origin = {} }) {
-  const rows = await getDb().unsafe(
+ async function writeTemplate({ workspaceId, template, userId, source, origin = {}, db: transactionDb } = {}) {
+  const database = transactionDb || getDb();
+  const rows = await database.unsafe(
    `insert into workspace_agent_templates
       (workspace_id, slug, name, category, description, handle_hint,
        system_prompt, soul, instructions, tools, skills, purpose,
@@ -358,6 +359,7 @@ function createAgentTemplates(deps = {}) {
   createAgentTemplate,
   saveAgentAsTemplate,
   importAgentTemplate,
+  writeTemplate,
   updateAgentTemplate,
   deleteAgentTemplate,
   publicTemplate,

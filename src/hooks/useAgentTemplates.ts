@@ -1,6 +1,44 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { apiAuthHeaders, apiUrl } from '../lib/backendClient';
 import type { StoredAgentTemplate } from '../lib/agentTemplates';
+import { agentBundleBase64 } from '../lib/agentBundleTransfer';
+
+export interface AgentBundleSkillReview {
+  name: string;
+  title: string;
+  summary: string;
+  bodyBytes: number;
+  fingerprint: string;
+  status: 'add' | 'reuse' | 'conflict';
+}
+
+export interface AgentBundleRequirementReview {
+  name: string;
+  status: 'embedded' | 'available' | 'needs_setup';
+}
+
+export interface AgentBundleReview {
+  template: Record<string, unknown>;
+  templateFingerprint: string;
+  skills: AgentBundleSkillReview[];
+  requirements: AgentBundleRequirementReview[];
+  conflicts: string[];
+  addedSkillNames: string[];
+  reusedSkillNames: string[];
+  needsSetup: string[];
+  tools: string[];
+  requestedRuntime: string;
+  compressedBytes: number;
+  uncompressedBytes: number;
+}
+
+export interface AgentBundleImportResult {
+  template: StoredAgentTemplate | null;
+  addedSkillNames: string[];
+  reusedSkillNames: string[];
+  needsSetup: string[];
+  requirements: AgentBundleRequirementReview[];
+}
 
 // Authored agent templates ("persona packs").
 //
@@ -132,6 +170,58 @@ export function useAgentTemplates(workspaceId: string | null) {
     }
   }, [workspaceId]);
 
+  const previewAgentBundle = useCallback(async (bytes: Uint8Array): Promise<{ review: AgentBundleReview | null; error: string }> => {
+    if (!workspaceId) return { review: null, error: 'No workspace selected' };
+    try {
+      const response = await fetch(
+        apiUrl(`/backend/workspaces/${workspaceId}/agent-templates/import-bundle/preview`),
+        {
+          method: 'POST',
+          headers: { ...apiAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bundle: agentBundleBase64(bytes) }),
+        },
+      );
+      const body: { data?: AgentBundleReview; error?: { message?: string } | string } | null =
+        await response.json().catch(() => null);
+      if (response.status === 403) return { review: null, error: 'Importing a bundle needs the manage role on this workspace.' };
+      if (!response.ok) {
+        const error = body?.error;
+        if (typeof error === 'string' && error.trim()) return { review: null, error };
+        if (error && typeof error === 'object' && error.message) return { review: null, error: error.message };
+        return { review: null, error: 'Could not read that agent bundle.' };
+      }
+      return { review: body?.data ?? null, error: body?.data ? '' : 'The server returned no bundle review.' };
+    } catch {
+      return { review: null, error: 'Could not reach the server to review that bundle.' };
+    }
+  }, [workspaceId]);
+
+  const importAgentBundle = useCallback(async (bytes: Uint8Array): Promise<{ result: AgentBundleImportResult | null; error: string }> => {
+    if (!workspaceId) return { result: null, error: 'No workspace selected' };
+    try {
+      const response = await fetch(
+        apiUrl(`/backend/workspaces/${workspaceId}/agent-templates/import-bundle`),
+        {
+          method: 'POST',
+          headers: { ...apiAuthHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bundle: agentBundleBase64(bytes) }),
+        },
+      );
+      const body: { data?: AgentBundleImportResult; error?: { message?: string } | string } | null =
+        await response.json().catch(() => null);
+      if (response.status === 403) return { result: null, error: 'Importing a bundle needs the manage role on this workspace.' };
+      if (!response.ok) {
+        const error = body?.error;
+        if (typeof error === 'string' && error.trim()) return { result: null, error };
+        if (error && typeof error === 'object' && error.message) return { result: null, error: error.message };
+        return { result: null, error: 'Could not import that agent bundle.' };
+      }
+      return { result: body?.data ?? null, error: body?.data ? '' : 'The server returned no imported template.' };
+    } catch {
+      return { result: null, error: 'Could not reach the server to import that bundle.' };
+    }
+  }, [workspaceId]);
+
   const deleteTemplate = useCallback(async (templateId: string): Promise<boolean> => {
     if (!workspaceId || !templateId) return false;
     try {
@@ -147,5 +237,15 @@ export function useAgentTemplates(workspaceId: string | null) {
     }
   }, [workspaceId]);
 
-  return { templates, loading, unavailable, refresh, saveAgentAsTemplate, importTemplate, deleteTemplate };
+  return {
+    templates,
+    loading,
+    unavailable,
+    refresh,
+    saveAgentAsTemplate,
+    importTemplate,
+    previewAgentBundle,
+    importAgentBundle,
+    deleteTemplate,
+  };
 }

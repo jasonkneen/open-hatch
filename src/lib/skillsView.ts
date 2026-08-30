@@ -53,7 +53,9 @@ export interface SkillAgentRef {
   source: SkillClaimSource;
   /** A live daemon connection is advertising this agent's capabilities now. */
   connected: boolean;
-  /** Chip identity: initials on a solid colour. NEVER an emoji. */
+  /** The selected avatar, or the compact automatic Blobatar marker. */
+  avatar?: string | null;
+  /** Fallback identity for explicit non-image avatar keys. NEVER an emoji. */
   initials: string;
   color: string;
 }
@@ -182,6 +184,7 @@ export function buildSkillEntries(
         runMode: String(agent.run_mode || 'builtin'),
         source: advertised.has(skill) ? 'advertised' : 'configured',
         connected,
+        avatar: agent.avatar,
         initials: skillAgentInitials(agent),
         color: agentAccentColor(agent),
       });

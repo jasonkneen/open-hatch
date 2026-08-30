@@ -2,6 +2,7 @@ import { Bot } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { isImageAvatar, isPetSpritesheetAvatar, renderablePetAssetUrl } from '../../lib/openpets';
 import { faceStack, type ReaderFace } from '../../lib/readerFaces';
+import { AgentAvatar } from '../agents/AgentAvatar';
 
 // The overlapping row of little faces inside a chip: who read this, who
 // acknowledged it.
@@ -44,7 +45,15 @@ function Face({ face }: { face: ReaderFace }) {
       )}
       style={style}
     >
-      {avatar && isPetSpritesheetAvatar(avatar) ? (
+      {face.isAgent && face.name ? (
+        <AgentAvatar
+          avatar={avatar}
+          name={face.name}
+          initials={face.initials}
+          className="size-full"
+          fallbackClassName="bg-transparent text-[8px] font-semibold leading-none"
+        />
+      ) : avatar && isPetSpritesheetAvatar(avatar) ? (
         <span className="animated-pet-avatar-shell size-full">
           <span className="animated-pet-avatar" style={{ backgroundImage: `url(${renderablePetAssetUrl(avatar)})` }} />
         </span>

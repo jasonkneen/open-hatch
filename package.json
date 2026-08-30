@@ -84,6 +84,7 @@
     "@shadcn/react": "^0.1.0",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "blobatar": "^2.5.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -92,6 +93,7 @@
     "dompurify": "^3.4.12",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.2.1",
+    "fflate": "^0.8.3",
     "input-otp": "^1.4.2",
     "livekit-client": "^2.15.4",
     "livekit-server-sdk": "^2.13.1",
@@ -147,6 +149,15 @@
       "output": "release",
       "buildResources": "build"
     },
+    "fileAssociations": [
+      {
+        "ext": "agn",
+        "name": "Agensis Agent Bundle",
+        "description": "Compressed agensis agent bundle",
+        "role": "Editor",
+        "mimeType": "application/vnd.agensis.agent-bundle"
+      }
+    ],
     "files": [
       "dist/**/*",
       "electron/**/*",

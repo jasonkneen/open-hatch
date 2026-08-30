@@ -112,9 +112,10 @@ function createWorkspaceSkills(deps = {}) {
   * from a thread harvest would erase the only record of where the procedure came
   * from, which is the question somebody asks after an agent follows it.
   */
- async function writeSkill({ workspaceId, skill, userId, source, origin = {} }) {
+ async function writeSkill({ workspaceId, skill, userId, source, origin = {}, db: transactionDb } = {}) {
   const provenance = SKILL_SOURCES.has(String(source)) ? String(source) : 'authored';
-  const rows = await getDb().unsafe(
+  const database = transactionDb || getDb();
+  const rows = await database.unsafe(
    `insert into workspace_skills
       (workspace_id, name, title, summary, body, source, origin, created_by)
     values ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)

@@ -33,6 +33,7 @@ import type { HuddleState } from '@/types';
 import { useHuddleDock } from './HuddleDockContext';
 import { HuddleSessionContext } from './HuddleSessionContext';
 import { HuddleAgentStrip } from './HuddleAgentStrip';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import { HuddleCaption } from './HuddleCaption';
 import { HuddleNotes } from './HuddleNotes';
 import { HuddlePanel } from './HuddlePanel';
@@ -283,8 +284,12 @@ export function HuddleDock() {
   // connected. Previously agents had no LiveKit presence at all and had to be
   // synthesised from a roster no presence event ever mentioned.
   const participants = useMemo(
-    () => buildRoomDockParticipants(local.roomParticipants, activeAgent?.id || ''),
-    [local.roomParticipants, activeAgent?.id],
+    () => buildRoomDockParticipants(local.roomParticipants, activeAgent?.id || '').map(participant => (
+      participant.kind === 'agent'
+        ? { ...participant, avatar: agents.find(agent => agent.id === participant.id)?.avatar || null }
+        : participant
+    )),
+    [agents, local.roomParticipants, activeAgent?.id],
   );
 
   // PERMANENTLY STABLE, via refs. handleLeave is also LiveKitRoom's
@@ -419,7 +424,15 @@ export function HuddleDock() {
                   participant.speaking && 'ring-2 ring-emerald-500',
                 )}
               >
-                {participantInitials(participant.name)}
+                {participant.kind === 'agent' ? (
+                  <AgentAvatar
+                    avatar={participant.avatar}
+                    name={participant.name}
+                    initials={participantInitials(participant.name)}
+                    className="size-6 rounded-full"
+                    fallbackClassName="bg-transparent text-[10px] text-primary"
+                  />
+                ) : participantInitials(participant.name)}
               </span>
             ))}
           </div>

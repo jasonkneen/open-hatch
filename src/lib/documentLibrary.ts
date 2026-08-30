@@ -54,7 +54,9 @@ export interface LibraryAgentRef {
   id: string;
   name: string;
   handle: string;
-  /** Chip identity: initials on a solid colour. NEVER an emoji. */
+  /** The selected avatar, or the compact automatic Blobatar marker. */
+  avatar?: string | null;
+  /** Fallback identity for explicit non-image avatar keys. NEVER an emoji. */
   initials: string;
   color: string;
   /** A live daemon is attached right now. */
@@ -260,6 +262,7 @@ function agentRef(index: AgentIndex, agentId: string): LibraryAgentRef | null {
     id: String(agent.id),
     name: agent.name,
     handle: String(agent.handle || ''),
+    avatar: agent.avatar,
     initials: libraryAgentInitials(agent),
     color: agentAccentColor(agent),
     connected: index.connected.has(String(agent.id)),

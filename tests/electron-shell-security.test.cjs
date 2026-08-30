@@ -6,6 +6,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const source = fs.readFileSync(path.resolve(__dirname, '../electron/main.cjs'), 'utf8');
+const packageJson = JSON.parse(fs.readFileSync(path.resolve(__dirname, '../package.json'), 'utf8'));
 
 test('the Electron main frame cannot navigate away with privileged preload access', () => {
   assert.match(source, /function trustedRendererUrl\(/);
@@ -35,5 +36,16 @@ test('PTY IPC is both origin-bound and owned by the sending window', () => {
 test('the folder picker is unavailable to untrusted frames', () => {
   const start = source.indexOf("ipcMain.handle('pick-folder'");
   const end = source.indexOf('\n});', start);
-  assert.match(source.slice(start, end), /if \(!trustedIpcSender\(event\)\) return null/);
+ assert.match(source.slice(start, end), /if \(!trustedIpcSender\(event\)\) return null/);
+});
+
+test('desktop .agn files use one app instance and reach the renderer on open', () => {
+ assert.match(source, /requestSingleInstanceLock\(\)/);
+ assert.match(source, /app\.on\('open-file'/);
+ assert.match(source, /app\.on\('second-instance'/);
+ assert.match(source, /agent-bundle:open/);
+ assert.match(source, /path\.extname\(value\)\.toLowerCase\(\) === '\.agn'/);
+
+ const associations = packageJson.build?.fileAssociations || [];
+ assert.ok(associations.some(entry => entry.ext === 'agn' && entry.mimeType === 'application/vnd.agensis.agent-bundle'));
 });

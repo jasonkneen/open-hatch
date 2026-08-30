@@ -1,6 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Bot,
   CalendarRange,
   CheckCircle2,
   ChevronDown,
@@ -36,6 +35,7 @@ import { agentHandle } from '../../lib/agentAccent';
 import { isAssigneeActive, resolveTaskCommentAuthor } from '../../lib/taskAgents';
 import { parseMessageAttachments } from '../../lib/messageAttachments';
 import { MessageAttachmentList } from '../chat/MessageAttachments';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { TaskActivityChip } from './TaskActivityChip';
 import {
   DAY_MS,
@@ -1373,9 +1373,13 @@ function TaskDetail({
                           className="rounded-lg px-2 py-1.5"
                           onSelect={() => selectMentionAgent(agent)}
                         >
-                          <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                            <Bot className="size-4" />
-                          </span>
+                          <AgentAvatar
+                            avatar={agent.avatar}
+                            name={agent.name}
+                            initials={agent.name.slice(0, 2).toUpperCase()}
+                            className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"
+                            fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+                          />
                           <span className="min-w-0 flex-1">
                             <span className="block truncate font-medium">{agent.name}</span>
                             <span className="block truncate text-xs text-muted-foreground">
@@ -1742,11 +1746,13 @@ function TaskCommentItem({
   return (
     <Item size="xs" variant="muted" className="task-comment-row items-start">
       {isAgent ? (
-        <Avatar size="sm" className="size-5">
-          <AvatarFallback className="bg-primary/15 text-primary">
-            <Bot className="size-3" />
-          </AvatarFallback>
-        </Avatar>
+        <AgentAvatar
+          avatar={author.avatar}
+          name={author.label}
+          initials={author.label.slice(0, 2).toUpperCase()}
+          className="size-5 rounded-full bg-primary/15 text-primary"
+          fallbackClassName="bg-transparent text-[9px] text-primary"
+        />
       ) : (
         <TaskCommentAvatar email={author.email} seed={comment.user_id || comment.id} />
       )}

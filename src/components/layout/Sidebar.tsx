@@ -52,7 +52,7 @@ import {
 import { ThemeToggle } from './ThemeToggle';
 import type { ThemeMode } from '../../hooks/useTheme';
 import type { AgentConnection, ChatSession, Document, FloatingWindow, ItemPresenceUser, Workspace, WorkspaceAgent } from '../../types';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import {
@@ -76,6 +76,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { AccountDialog } from '../account/AccountDialog';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { AgentStatusFeed } from './AgentStatusFeed';
 import { SessionWorkBadge } from '../chat/AgentWorkBadge';
 import { APP_VERSION, BUILD_ID } from '../../lib/appVersion';
@@ -166,7 +167,6 @@ function AgentStatusFeedOverlay({
   document.body,
  );
 }
-import { isImageAvatar, isPetSpritesheetAvatar, renderablePetAssetUrl } from '../../lib/openpets';
 import { WORKSPACE_CHROME_GAP } from '../../lib/workspaceLayout';
 import { partitionSidebarSessions } from '../../lib/sidebarSessions';
 import { splitNostrChannelGroups } from '../../lib/nostrChannelGroups';
@@ -1617,8 +1617,6 @@ function DirectAgentRow({
  const status = agent.status || 'offline';
  const statusColor = status === 'online' ? 'bg-emerald-500' : status === 'busy' ? 'bg-amber-500' : 'bg-muted-foreground/40';
  const avatar = agent.avatar || null;
- const avatarSrc = avatar && isImageAvatar(avatar) ? renderablePetAssetUrl(avatar) : undefined;
- const avatarIsSpritesheet = isPetSpritesheetAvatar(avatar);
  const profileEnabled = Boolean(agent.agentId || handle);
 
  return (
@@ -1633,18 +1631,13 @@ function DirectAgentRow({
    >
     <span className="relative flex size-7 shrink-0 items-center justify-center">
      <Avatar size="default" className="size-7 rounded-md bg-muted">
-      {avatarIsSpritesheet && avatar ? (
-       <span className="animated-pet-avatar-shell size-full rounded-md">
-        <span className="animated-pet-avatar" style={{ backgroundImage: `url(${renderablePetAssetUrl(avatar)})` }} />
-       </span>
-      ) : (
-       <>
-        {avatarSrc && <AvatarImage src={avatarSrc} alt="" className="rounded-md" />}
-        <AvatarFallback className="rounded-md">
-         <Bot className="size-4" />
-        </AvatarFallback>
-       </>
-      )}
+      <AgentAvatar
+       avatar={avatar}
+       name={agent.name}
+       initials={agent.name.slice(0, 2).toUpperCase()}
+       className="size-7 rounded-md"
+       fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+      />
      </Avatar>
      {/* Inside the avatar bounds — parent .sidebar-agent-primary is overflow:hidden,
          so negative offsets + ring (box-shadow) only showed a clipped crescent. */}
@@ -2392,7 +2385,13 @@ function LibrarySourceChips({ sources }: { sources: LibrarySource[] }) {
      style={{ backgroundColor: agent.color, opacity: agent.connected ? 1 : 0.55 }}
      title={`${agent.name}${agent.connected ? '' : ' (offline — this is the last copy it sent)'}`}
     >
-     {agent.initials}
+     <AgentAvatar
+      avatar={agent.avatar}
+      name={agent.name}
+      initials={agent.initials}
+      className="size-3.5 rounded-full"
+      fallbackClassName="bg-transparent text-[7px] text-white"
+     />
     </span>
    ))}
    {agents.length > 2 && (

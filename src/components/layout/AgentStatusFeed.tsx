@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { Bot, X, ChevronRight, ChevronDown, Bell, BellOff } from 'lucide-react';
-import { isImageAvatar, isPetSpritesheetAvatar, renderablePetAssetUrl } from '../../lib/openpets';
+import { X, ChevronRight, ChevronDown, Bell, BellOff } from 'lucide-react';
+import { AgentAvatar } from '../agents/AgentAvatar';
+import { isPetSpritesheetAvatar, renderablePetAssetUrl } from '../../lib/openpets';
 import type { AgentStatusFeedState, AgentStatusUpdate } from '../../hooks/useAgentStatusFeed';
 
 /**
@@ -19,7 +20,7 @@ function petStateForKind(kind: AgentStatusUpdate['kind']) {
   return 'idle';
 }
 
-function FeedAvatar({ avatar, kind }: { avatar: string | null; kind: AgentStatusUpdate['kind'] }) {
+function FeedAvatar({ avatar, name, kind }: { avatar: string | null; name: string; kind: AgentStatusUpdate['kind'] }) {
   if (avatar && isPetSpritesheetAvatar(avatar)) {
     return (
       <span className="animated-pet-avatar-shell size-8 shrink-0 rounded-sm">
@@ -31,20 +32,15 @@ function FeedAvatar({ avatar, kind }: { avatar: string | null; kind: AgentStatus
       </span>
     );
   }
-  const src = avatar && isImageAvatar(avatar) ? renderablePetAssetUrl(avatar) : undefined;
-  // Whatever the agent was assigned, show it. Image → the image; a short text
-  // avatar (e.g. "MI", "AI") → those initials, not a generic robot; only a
-  // truly empty avatar falls back to the Bot glyph.
-  const initials = !src && avatar ? avatar.trim().slice(0, 2).toUpperCase() : '';
   return (
     <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-sm border-2 border-border bg-muted">
-      {src ? (
-        <img src={src} alt="" className="pixel-avatar size-full object-cover" />
-      ) : initials ? (
-        <span className="pixel-font text-[8px] leading-none text-foreground">{initials}</span>
-      ) : (
-        <Bot className="size-4 text-muted-foreground" />
-      )}
+      <AgentAvatar
+        avatar={avatar}
+        name={name}
+        initials={name.slice(0, 2).toUpperCase()}
+        className="size-full"
+        fallbackClassName="bg-transparent text-[8px] text-foreground"
+      />
     </span>
   );
 }
@@ -71,7 +67,7 @@ function useTypewriter(text: string, speed = 28) {
 function FeedRow({ update, onDismiss }: { update: AgentStatusUpdate; onDismiss: () => void }) {
   return (
     <div className="flex items-start gap-2">
-      <FeedAvatar avatar={update.avatar} kind={update.kind} />
+      <FeedAvatar avatar={update.avatar} name={update.name} kind={update.kind} />
       <div className="min-w-0 flex-1">
         <div className="pixel-bubble min-w-0">
           <div className="pixel-font flex items-center gap-1 text-[7px] uppercase text-muted-foreground">
@@ -158,7 +154,7 @@ export function AgentStatusFeed({ feed }: { feed: AgentStatusFeedState }) {
 
   return (
     <div className="flex items-start gap-2 px-2 pt-1" aria-live="polite">
-      <FeedAvatar avatar={current.avatar} kind={current.kind} />
+      <FeedAvatar avatar={current.avatar} name={current.name} kind={current.kind} />
       <div className="min-w-0 flex-1">
         <div className="relative min-w-0">
           {Array.from({ length: stackDepth }).map((_, i) => (

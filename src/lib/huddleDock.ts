@@ -239,6 +239,8 @@ export interface HuddleDockParticipant {
   id: string;
   name: string;
   kind: 'human' | 'agent';
+  /** Agent avatar from the workspace roster, when this participant is an agent. */
+  avatar?: string | null;
   /** Agents that are the current speaking target get marked. */
   active?: boolean;
   speaking?: boolean;

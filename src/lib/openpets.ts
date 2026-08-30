@@ -1,4 +1,5 @@
 import { apiAuthHeaders, apiUrl } from './backendClient';
+import { isBlobatarAvatar, renderAgentAvatar } from './agentAvatars';
 
 export interface OpenPetCatalogPage {
   version: number;
@@ -70,7 +71,11 @@ function fetchOpenPetsFromNetwork(): Promise<OpenPet[]> {
 }
 
 export function isImageAvatar(value: string | null | undefined) {
-  return Boolean(value && /^(https?:\/\/|\/|data:image\/|blob:)/i.test(value));
+  const normalized = String(value || '').trim();
+  return Boolean(
+    normalized
+    && (isBlobatarAvatar(normalized) || normalized.toUpperCase() === 'AI' || /^(https?:\/\/|\/|data:image\/|blob:)/i.test(normalized)),
+  );
 }
 
 export function isPetSpritesheetAvatar(value: string | null | undefined) {
@@ -82,7 +87,8 @@ export function openPetAvatarSrc(pet: Pick<OpenPet, 'thumbnail' | 'spritesheet'>
 }
 
 export function renderablePetAssetUrl(value: string) {
-  return value.startsWith('/backend/') ? apiUrl(value) : value;
+  const rendered = renderAgentAvatar(value);
+  return rendered.startsWith('/backend/') ? apiUrl(rendered) : rendered;
 }
 
 function normalizePetAssetUrl(value: unknown) {

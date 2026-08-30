@@ -1,11 +1,74 @@
 const { app, BrowserWindow, dialog, ipcMain, shell, safeStorage } = require('electron');
+const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { fileURLToPath } = require('url');
+const { AGENT_BUNDLE_MAX_COMPRESSED_BYTES } = require('../shared/agentBundles.cjs');
 
 const isDev = !app.isPackaged;
 let backendServer = null;
+let mainWindow = null;
+let rendererReady = false;
+const pendingAgentBundlePaths = [];
 const rendererFile = path.resolve(__dirname, '..', 'dist', 'index.html');
+
+function isAgentBundlePath(value) {
+ return typeof value === 'string' && path.extname(value).toLowerCase() === '.agn';
+}
+
+async function flushAgentBundlePaths() {
+ if (!rendererReady || !mainWindow || mainWindow.isDestroyed()) return;
+ while (pendingAgentBundlePaths.length > 0 && rendererReady && mainWindow && !mainWindow.isDestroyed()) {
+  const filePath = pendingAgentBundlePaths.shift();
+  try {
+   const stat = await fs.promises.stat(filePath);
+   if (!stat.isFile() || stat.size > AGENT_BUNDLE_MAX_COMPRESSED_BYTES) {
+    throw new Error('the .agn file is missing or larger than 5 MB');
+   }
+   const data = new Uint8Array(await fs.promises.readFile(filePath));
+   mainWindow.webContents.send('agent-bundle:open', {
+    name: path.basename(filePath),
+    bytes: data,
+   });
+  } catch (error) {
+   if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('agent-bundle:open', {
+     name: path.basename(filePath || 'agent.agn'),
+     error: error?.message || 'Could not open that .agn file',
+    });
+   }
+  }
+ }
+}
+
+function queueAgentBundlePath(filePath) {
+ if (!isAgentBundlePath(filePath)) return;
+ pendingAgentBundlePaths.push(filePath);
+ void flushAgentBundlePaths();
+}
+
+// A second desktop process must hand its file to the first one. On macOS the
+// open-file event covers Finder, while Windows/Linux commonly deliver the path
+// through the second-instance command line.
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+ app.quit();
+} else {
+ for (const argument of process.argv.slice(1)) queueAgentBundlePath(argument);
+ app.on('open-file', (event, filePath) => {
+  event.preventDefault();
+  queueAgentBundlePath(filePath);
+ });
+ app.on('second-instance', (_event, commandLine) => {
+  for (const argument of commandLine.slice(1)) queueAgentBundlePath(argument);
+  const win = mainWindow || BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) {
+   if (win.isMinimized()) win.restore();
+   win.show();
+   win.focus();
+  }
+ });
+}
 
 function trustedRendererUrl(value) {
   try {
@@ -70,6 +133,18 @@ function createWindow() {
       // src/components/windows/BrowserPanel.tsx for the web fallback.
       webviewTag: true,
     },
+  });
+  mainWindow = win;
+  rendererReady = false;
+  win.webContents.once('did-finish-load', () => {
+    rendererReady = true;
+    void flushAgentBundlePaths();
+  });
+  win.on('closed', () => {
+    if (mainWindow === win) {
+      mainWindow = null;
+      rendererReady = false;
+    }
   });
 
   // Guests are UNTRUSTED remote pages. Electron would otherwise let the tag's
@@ -427,6 +502,7 @@ ipcMain.handle('local-runtime:list-autostart', async (event) => {
 });
 
 app.whenReady().then(async () => {
+  if (!singleInstanceLock) return;
   // Opt-in only. Default packaged behaviour talks to the hosted backend baked
   // into the renderer; AGENSIS_BACKEND_EXTERNAL (set by electron:dev) is still
   // honoured as a hard "never start local" so dev's own `npm run backend`
@@ -435,6 +511,7 @@ app.whenReady().then(async () => {
     backendServer = startLocalBackend();
   }
   createWindow();
+  void flushAgentBundlePaths();
 
   // Warm login-shell PATH off the critical path so the first Agents/Connect
   // list does not pay a sync zsh -l on the main thread mid-interaction.

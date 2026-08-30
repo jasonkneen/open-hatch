@@ -13,6 +13,7 @@ import {
   SUGGESTION_LIMIT,
 } from '@/lib/channelMemberSuggestions';
 import { chorusNote } from '@/lib/channelCreateFlow';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import type { ConversationMode } from '@/lib/channelMentions';
 import type { AgentConnection, ChatSession, WorkspaceAgent } from '@/types';
 
@@ -32,9 +33,9 @@ import type { AgentConnection, ChatSession, WorkspaceAgent } from '@/types';
 // calls its templates "honest starting points, not hidden magic". "Add all"
 // gives the one-tap path without making it the default.
 //
-// Avatars are initials on a solid colour. NEVER an emoji — house rule. The
-// colour comes from agentAccentColor so an agent is the same colour here as in
-// every other surface.
+// Humans keep initials; agents use their selected avatar, with the automatic
+// Blobatar as the default. The accent colour remains the fallback and status
+// cue for old explicit avatar keys.
 // ---------------------------------------------------------------------------
 
 export interface MemberChoice {
@@ -45,6 +46,7 @@ export interface MemberChoice {
   user_id: string | null;
   agent_id: string | null;
   status: string | null;
+  avatar?: string | null;
   initials: string;
   color: string;
 }
@@ -67,6 +69,7 @@ function agentChoice(agent: WorkspaceAgent, status: string | null): MemberChoice
     user_id: null,
     agent_id: agent.id,
     status,
+    avatar: agent.avatar,
     initials: skillAgentInitials(agent),
     color: agentAccentColor(agent),
   };
@@ -89,7 +92,7 @@ function personChoice(row: WorkspaceMemberRow): MemberChoice {
   };
 }
 
-function Avatar({ choice, size = 'md' }: { choice: Pick<MemberChoice, 'initials' | 'color' | 'kind'>; size?: 'sm' | 'md' }) {
+function Avatar({ choice, size = 'md' }: { choice: Pick<MemberChoice, 'name' | 'avatar' | 'initials' | 'color' | 'kind'>; size?: 'sm' | 'md' }) {
   return (
     <span
       aria-hidden
@@ -100,7 +103,15 @@ function Avatar({ choice, size = 'md' }: { choice: Pick<MemberChoice, 'initials'
       )}
       style={choice.kind === 'agent' ? { backgroundColor: choice.color } : undefined}
     >
-      {choice.initials}
+      {choice.kind === 'agent' ? (
+        <AgentAvatar
+          avatar={choice.avatar}
+          name={choice.name}
+          initials={choice.initials}
+          className={cn(size === 'sm' ? 'size-5' : 'size-8', 'rounded-md')}
+          fallbackClassName="bg-transparent text-white"
+        />
+      ) : choice.initials}
     </span>
   );
 }

@@ -3,12 +3,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   Bot,
-  Brain,
   ChevronDown,
-  Code2,
   Command as CommandIcon,
   CornerDownRight,
-  Database,
   Eraser,
   FileText,
   Folder,
@@ -21,7 +18,6 @@ import {
   Link2,
   Loader2,
   MessageSquare,
-  Monitor,
   MoreHorizontal,
   Settings2,
   PanelRightClose,
@@ -31,7 +27,6 @@ import {
   Pin,
   Plus,
   RotateCcw,
-  Rocket,
   Send,
   ShieldCheck,
   Sparkles,
@@ -41,10 +36,10 @@ import {
   Users,
   Wrench,
   X,
-  type LucideIcon,
 } from 'lucide-react';
 import { ChatThreadPanel } from '../chat/ChatThreadPanel';
 import { SubThreadPanel } from '../chat/SubThreadPanel';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import {
   ComposerAddContent,
   FileChip,
@@ -203,7 +198,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import type { CreateTaskInput } from '../../hooks/useTasks';
 import { useMyThreads } from '../../hooks/useMyThreads';
-import { isImageAvatar, isPetSpritesheetAvatar, renderablePetAssetUrl } from '../../lib/openpets';
 import { agentAccentColor, agentAccentStyle, agentHandle, validAgentAccentColor } from '../../lib/agentAccent';
 import { huddleAgentOptions } from '../../lib/huddleAgents';
 import { englishVoiceIds } from '../../lib/agentVoice';
@@ -2019,7 +2013,15 @@ function dialogParticipantKey(participant: { id?: unknown; kind?: unknown; agent
                     // normal tab order while preserving the popover surface.
                     <div key={participant.id} className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm">
                       <span className="relative flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-[10px] font-semibold">
-                        {participant.kind === 'agent' ? <Bot className="size-3.5" /> : participant.name.slice(0, 2).toUpperCase()}
+                        {participant.kind === 'agent' ? (
+                          <AgentAvatar
+                            avatar={agents.find(agent => agent.id === participant.agent_id || agent.handle === participant.handle)?.avatar}
+                            name={participant.name}
+                            initials={participant.name.slice(0, 2).toUpperCase()}
+                            className="size-7 rounded-md"
+                            fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+                          />
+                        ) : participant.name.slice(0, 2).toUpperCase()}
                         {participant.connected && <span className="absolute right-0 bottom-0 size-2 rounded-full border border-card bg-emerald-500" />}
                       </span>
                       <span className="min-w-0 flex-1">
@@ -2491,9 +2493,13 @@ function dialogParticipantKey(participant: { id?: unknown; kind?: unknown; agent
                               className="rounded-lg px-2 py-2.5"
                               onSelect={() => handleAgentSelect(agent)}
                             >
-                              <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground">
-                                <Bot className="size-4" />
-                              </span>
+                              <AgentAvatar
+                                avatar={agent.avatar}
+                                name={agent.name}
+                                initials={agent.name.slice(0, 2).toUpperCase()}
+                                className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-muted-foreground"
+                                fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+                              />
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate font-medium">{agent.name}</span>
                                 <span className="block truncate text-xs text-muted-foreground">
@@ -2897,7 +2903,15 @@ function dialogParticipantKey(participant: { id?: unknown; kind?: unknown; agent
                           onClick={() => handleToggleParticipant(dialogParticipantKey(participant))}
                         >
                           <span className="relative flex size-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
-                            {participant.kind === 'agent' ? <Bot className="size-4" /> : participant.name.slice(0, 2).toUpperCase()}
+                            {participant.kind === 'agent' ? (
+                              <AgentAvatar
+                                avatar={agents.find(agent => agent.id === participant.agent_id || agent.handle === participant.handle)?.avatar}
+                                name={participant.name}
+                                initials={participant.name.slice(0, 2).toUpperCase()}
+                                className="size-8 rounded-md"
+                                fallbackClassName="bg-transparent text-xs text-muted-foreground"
+                              />
+                            ) : participant.name.slice(0, 2).toUpperCase()}
                             {participant.connected && <span className="absolute right-0 bottom-0 size-2 rounded-full border border-card bg-emerald-500" />}
                           </span>
                           <span className="min-w-0 flex-1">
@@ -2988,9 +3002,13 @@ function dialogParticipantKey(participant: { id?: unknown; kind?: unknown; agent
                   setSidePanel('sub-threads');
                 }}
               >
-                <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
-                  <Bot className="size-3.5" />
-                </div>
+                <AgentAvatar
+                  avatar={agent.avatar}
+                  name={agent.name}
+                  initials={agent.name.slice(0, 2).toUpperCase()}
+                  className="size-7 rounded-full bg-muted text-muted-foreground"
+                  fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+                />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-medium">{agent.name}</div>
                   {agent.handle && <div className="truncate text-xs text-muted-foreground">@{agent.handle}</div>}
@@ -3014,18 +3032,19 @@ function dialogParticipantKey(participant: { id?: unknown; kind?: unknown; agent
   );
 });
 
-function MessageAvatar({ avatar, initials, isAgent }: { avatar?: string; initials: string; isAgent: boolean }) {
-  if (avatar && isPetSpritesheetAvatar(avatar)) {
+function MessageAvatar({ avatar, name, initials, isAgent }: { avatar?: string | null; name?: string; initials: string; isAgent: boolean }) {
+  if (isAgent) {
     return (
-      <span className="animated-pet-avatar-shell size-full">
-        <span className="animated-pet-avatar" style={{ backgroundImage: `url(${renderablePetAssetUrl(avatar)})` }} />
-      </span>
+      <AgentAvatar
+        avatar={avatar}
+        name={name}
+        initials={initials}
+        className="size-full"
+        fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+      />
     );
   }
-  if (avatar && isImageAvatar(avatar)) {
-    return <img src={renderablePetAssetUrl(avatar)} alt="" className="size-full object-contain" loading="lazy" draggable={false} />;
-  }
-  return isAgent ? <Bot className="size-4" /> : <span>{initials}</span>;
+  return <span>{initials}</span>;
 }
 
 function ThinkingIndicator({ text = 'Thinking…' }: { text?: string }) {
@@ -3095,6 +3114,7 @@ function ThreadReplySummaryButton({
             >
               <MessageAvatar
                 avatar={participant.avatar}
+                name={participant.name}
                 initials={participant.name.slice(0, 2).toUpperCase()}
                 isAgent={participant.isAgent}
               />
@@ -3278,7 +3298,7 @@ function ChatMessageBubble({
       style={accentStyle}
     >
       <div className="chat-message-avatar mt-0.5 flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted text-[10px] font-semibold text-muted-foreground">
-        <MessageAvatar avatar={avatar} initials={initials} isAgent={msg.sender_kind === 'agent' || msg.role === 'assistant'} />
+        <MessageAvatar avatar={avatar} name={senderName} initials={initials} isAgent={msg.sender_kind === 'agent' || msg.role === 'assistant'} />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 items-baseline gap-2">
@@ -4157,7 +4177,6 @@ function AgentProfileSidePanel({
   const tools = normalizeStringList(agent?.tools);
   const skills = normalizeStringList(agent?.skills);
   const metadataRows = activeConnection ? agentConnectionMetadataRows(activeConnection.metadata) : [];
-  const AvatarIcon = getAgentAvatarIcon(agent?.avatar);
 
   return (
     <div className="flex h-full min-w-0 flex-col" style={agent ? agentAccentStyle(agent) : undefined}>
@@ -4171,17 +4190,13 @@ function AgentProfileSidePanel({
       <div className="min-h-0 flex-1 overflow-auto p-4">
         <div className="flex flex-col items-center text-center">
           <div className="agent-profile-avatar grid size-20 place-items-center overflow-hidden rounded-2xl bg-muted text-2xl font-semibold">
-            {agent?.avatar && isPetSpritesheetAvatar(agent.avatar) ? (
-              <span className="animated-pet-avatar-shell size-full">
-                <span className="animated-pet-avatar" style={{ backgroundImage: `url(${renderablePetAssetUrl(agent.avatar)})` }} />
-              </span>
-            ) : isImageAvatar(agent?.avatar) ? (
-              <img src={renderablePetAssetUrl(agent?.avatar || '')} alt="" className="size-full object-cover" draggable={false} />
-            ) : AvatarIcon ? (
-              <AvatarIcon className="size-9 text-muted-foreground" />
-            ) : (
-              <Bot className="size-9 text-muted-foreground" />
-            )}
+            <AgentAvatar
+              avatar={agent?.avatar}
+              name={name}
+              initials={name.slice(0, 2).toUpperCase()}
+              className="size-full"
+              fallbackClassName="bg-transparent text-2xl text-muted-foreground"
+            />
           </div>
           <div className="mt-3 text-base font-semibold">{name}</div>
           {handle && <div className="text-sm text-muted-foreground">@{handle}</div>}
@@ -4683,37 +4698,6 @@ function resolveMessageAccent(message: ChatMessage, lookup: Map<string, string>)
     if (accent) return accent;
   }
   return '';
-}
-
-function getAgentAvatarIcon(value?: string | null): LucideIcon | null {
-  switch (normalizeAgentLookupKey(value)) {
-    case 'icon:bot':
-      return Bot;
-    case 'icon:sparkles':
-      return Sparkles;
-    case 'icon:brain':
-      return Brain;
-    case 'icon:terminal':
-      return Terminal;
-    case 'icon:code':
-      return Code2;
-    case 'icon:command':
-      return CommandIcon;
-    case 'icon:wrench':
-      return Wrench;
-    case 'icon:database':
-      return Database;
-    case 'icon:shield':
-      return ShieldCheck;
-    case 'icon:rocket':
-      return Rocket;
-    case 'icon:globe':
-      return Globe;
-    case 'icon:monitor':
-      return Monitor;
-    default:
-      return null;
-  }
 }
 
 function connectionMatchesAgentProfile(

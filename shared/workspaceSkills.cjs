@@ -350,6 +350,85 @@ function renderWorkspaceSkillMarkdown(skill = {}) {
 }
 
 /**
+ * Read the deliberately small frontmatter shape emitted by
+ * renderWorkspaceSkillMarkdown.
+ *
+ * This is not a general YAML parser. A bundle is an interchange format, so
+ * accepting YAML's implicit types or arbitrary frontmatter would make a skill
+ * mean something different depending on which client opened it. The only
+ * accepted keys are the ones this renderer writes, and quoted values use JSON
+ * escaping so the round trip is unambiguous.
+ */
+function parseWorkspaceSkillMarkdown(markdown) {
+ const text = String(markdown || '').replace(/\r\n?/g, '\n');
+ const lines = text.split('\n');
+ if (lines[0] !== '---') {
+  return { ok: false, errors: ['skill must start with --- frontmatter'], skill: null };
+ }
+
+ const end = lines.indexOf('---', 1);
+ if (end < 0) {
+  return { ok: false, errors: ['skill frontmatter is not closed'], skill: null };
+ }
+
+ const values = {};
+ const seen = new Set();
+ const errors = [];
+ for (const line of lines.slice(1, end)) {
+  if (!line.trim()) continue;
+  const separator = line.indexOf(':');
+  if (separator <= 0) {
+   errors.push('skill frontmatter contains an invalid line');
+   continue;
+  }
+  const key = line.slice(0, separator).trim();
+  const rawValue = line.slice(separator + 1).trim();
+  if (!['name', 'title', 'description', 'source'].includes(key)) {
+   errors.push(`${key} is not allowed in a bundled skill frontmatter`);
+   continue;
+  }
+  if (seen.has(key)) {
+   errors.push(`${key} appears more than once in skill frontmatter`);
+   continue;
+  }
+  seen.add(key);
+
+  if (key === 'name' || key === 'source') {
+   values[key] = rawValue;
+   continue;
+  }
+  try {
+   const parsed = JSON.parse(rawValue);
+   if (typeof parsed !== 'string') throw new Error('not a string');
+   values[key] = parsed;
+  } catch {
+   errors.push(`${key} must be a JSON-quoted string`);
+  }
+ }
+
+ if (values.source !== undefined && values.source !== 'agensis workspace skill') {
+  errors.push('skill source is not an agensis workspace skill');
+ }
+
+ const bodyLines = lines.slice(end + 1);
+ if (bodyLines[0] === '') bodyLines.shift();
+ let body = bodyLines.join('\n');
+ // renderWorkspaceSkillMarkdown adds one final newline. Remove only that one,
+ // preserving a newline that was part of the authored body.
+ if (body.endsWith('\n')) body = body.slice(0, -1);
+
+ if (errors.length) return { ok: false, errors, skill: null };
+ const result = normalizeWorkspaceSkill({
+  name: values.name,
+  title: values.title,
+  summary: values.description,
+  body,
+ });
+ if (!result.ok) return result;
+ return result;
+}
+
+/**
  * Which of a template's named skills actually resolve in a workspace.
  *
  * THE DANGLING-REFERENCE FIX. A template's `skills` array is a list of REQUESTS
@@ -405,6 +484,7 @@ module.exports = {
  normalizeWorkspaceSkill,
  rejectedFields,
  renderWorkspaceSkillMarkdown,
+ parseWorkspaceSkillMarkdown,
  resolveTemplateSkills,
  skillFingerprint,
  slugifySkillName,

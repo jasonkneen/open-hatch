@@ -2,6 +2,12 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   pickFolder: () => ipcRenderer.invoke('pick-folder'),
+  /** Fired when Finder/File Explorer opens a .agn bundle in the desktop app. */
+  onAgentBundleOpen: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('agent-bundle:open', handler);
+    return () => ipcRenderer.removeListener('agent-bundle:open', handler);
+  },
 
   /**
    * Probe this machine for local agent CLIs (claude, codex, amp, grok, …).

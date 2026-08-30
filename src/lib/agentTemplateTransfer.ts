@@ -114,7 +114,7 @@ export function parseTemplateExport(text: string): { ok: true; envelope: unknown
  * speak as its own instructions.
  */
 export const TEMPLATE_IMPORT_NOTE =
-  'A template file carries wording, requested tools and skills, and a descriptive '
+  'A template file or compressed .agn bundle carries wording, requested tools and skills, and a descriptive '
   + 'collaborator or resource label. It cannot carry a permission mode, a sandbox '
   + 'setting, a token or an identity, because a template has nowhere to keep them. '
   + 'Read the prompt before you use it: it becomes the instructions an agent here follows.';

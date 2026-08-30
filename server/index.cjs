@@ -21,6 +21,7 @@ const {
 } = require('./flow-integration.cjs');
 const { createAutomations, mountAutomationRoutes } = require('./automations.cjs');
 const { createAgentTemplates, mountAgentTemplateRoutes } = require('./agent-templates-routes.cjs');
+const { createAgentBundles, mountAgentBundleRoutes } = require('./agent-bundles-routes.cjs');
 const { createMarketplace, mountMarketplaceRoutes } = require('./marketplace-routes.cjs');
 const { createWorkspaceSkills, mountWorkspaceSkillRoutes } = require('./workspace-skills-routes.cjs');
 const {
@@ -9701,8 +9702,8 @@ const {
 // the security property is that its output is REBUILT from a carried-field list,
 // so no privilege-bearing column can ride into the template table.
 const {
- listAgentTemplates, createAgentTemplate, saveAgentAsTemplate, importAgentTemplate,
- updateAgentTemplate, deleteAgentTemplate,
+ listAgentTemplates, createAgentTemplate, saveAgentAsTemplate, importAgentTemplate, writeTemplate,
+ updateAgentTemplate, deleteAgentTemplate, publicTemplate,
 } = createAgentTemplates({
  getDb: () => getDb(),
  notifyDbSubscribers: (...a) => notifyDbSubscribers(...a),
@@ -9757,6 +9758,16 @@ const {
  getDb: () => getDb(),
  notifyDbSubscribers: (...a) => notifyDbSubscribers(...a),
  enforceWorkspaceRole: (...a) => enforceWorkspaceRole(...a),
+});
+
+const { previewAgentBundle, importAgentBundle, decodeBundle } = createAgentBundles({
+ getDb: () => getDb(),
+ notifyDbSubscribers: (...a) => notifyDbSubscribers(...a),
+ enforceWorkspaceRole: (...a) => enforceWorkspaceRole(...a),
+ writeTemplate,
+ writeSkill: writeWorkspaceSkill,
+ publicTemplate,
+ recordAudit: (...a) => recordAudit(...a),
 });
 
 // Ephemeral speakable sentences for live huddles (Cartesia leads the durable
@@ -10291,9 +10302,13 @@ function createApp() {
  // create-agent route here: a template prefills the existing form and the write
  // still goes through the generic insert, where the column guards apply.
  mountAgentTemplateRoutes(app, {
+ ...coreDeps(),
+ listAgentTemplates, createAgentTemplate, saveAgentAsTemplate, importAgentTemplate,
+ updateAgentTemplate, deleteAgentTemplate,
+ });
+ mountAgentBundleRoutes(app, {
   ...coreDeps(),
-  listAgentTemplates, createAgentTemplate, saveAgentAsTemplate, importAgentTemplate,
-  updateAgentTemplate, deleteAgentTemplate,
+  previewAgentBundle, importAgentBundle, decodeBundle,
  });
  // The agent marketplace. Browse is any signed-in user (listings are published
  // on purpose); publish, unpublish, copy and hire are 'manage' — each one

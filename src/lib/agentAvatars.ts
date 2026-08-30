@@ -1,8 +1,60 @@
+import { blobatarUri } from 'blobatar/uri';
+
 export type AgentAvatarChoice = {
   id: string;
   label: string;
   src: string;
 };
+
+/**
+ * Automatic avatars are stored as a short marker rather than as an SVG data
+ * URI. That keeps agent rows, templates, and .agn bundles small; the SVG is
+ * generated locally when an avatar is rendered.
+ */
+export const BLOBATAR_AVATAR_PREFIX = 'blobatar:';
+export const DEFAULT_AGENT_AVATAR = '';
+const LEGACY_DEFAULT_AGENT_AVATAR = 'AI';
+
+function avatarSeed(value: string | null | undefined) {
+  const slug = String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 64)
+    .replace(/^-+|-+$/g, '');
+  return slug || 'agent';
+}
+
+export function automaticAgentAvatar(seed: string | null | undefined) {
+  return `${BLOBATAR_AVATAR_PREFIX}${avatarSeed(seed)}`;
+}
+
+export function isBlobatarAvatar(value: string | null | undefined) {
+  return String(value || '').trim().toLowerCase().startsWith(BLOBATAR_AVATAR_PREFIX);
+}
+
+/** Empty and legacy `AI` values are the old implicit default, not a manual choice. */
+export function isAutomaticAgentAvatar(value: string | null | undefined) {
+  const normalized = String(value || '').trim();
+  return !normalized || normalized.toUpperCase() === LEGACY_DEFAULT_AGENT_AVATAR || isBlobatarAvatar(normalized);
+}
+
+/** Convert the implicit default to a compact marker while preserving manual avatars verbatim. */
+export function resolveAgentAvatar(value: string | null | undefined, seed: string | null | undefined) {
+  const normalized = String(value || '').trim();
+  return isAutomaticAgentAvatar(normalized) && !isBlobatarAvatar(normalized)
+    ? automaticAgentAvatar(seed)
+    : normalized;
+}
+
+/** Return a renderable local data URI for automatic avatars; all manual values pass through. */
+export function renderAgentAvatar(value: string | null | undefined, seed?: string | null) {
+  const resolved = resolveAgentAvatar(value, seed);
+  if (!isBlobatarAvatar(resolved)) return resolved;
+  const markerSeed = resolved.slice(BLOBATAR_AVATAR_PREFIX.length).trim() || avatarSeed(seed);
+  return blobatarUri(markerSeed);
+}
 
 export const AGENT_AVATAR_CHOICES: AgentAvatarChoice[] = [
   { id: 'set1-fox-hoodie', label: 'Fox hoodie', src: '/agent-avatars/set1-fox-hoodie.png' },

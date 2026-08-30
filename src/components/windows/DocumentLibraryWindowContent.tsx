@@ -15,6 +15,7 @@ import { describeDiff, diffHunks, diffLines, type DiffResult } from '../../lib/t
 import type { DocumentLibrary } from '../../hooks/useDocumentLibrary';
 import { usePaneSplit } from '../../hooks/usePaneSplit';
 import { MarkdownContent } from '../chat/MarkdownContent';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { viewPreferenceKey } from '../../lib/viewPreferences';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -76,7 +77,15 @@ function SourceChip({ source, onOpen }: { source: LibrarySource; onOpen: () => v
         style={{ backgroundColor: agent?.color || 'var(--primary)' }}
         aria-hidden="true"
       >
-        {agent?.initials || 'WS'}
+        {agent ? (
+          <AgentAvatar
+            avatar={agent.avatar}
+            name={agent.name}
+            initials={agent.initials}
+            className="size-4 rounded-full"
+            fallbackClassName="bg-transparent text-[8px] text-white"
+          />
+        ) : 'WS'}
       </span>
       <span className="truncate">{agent?.name || 'Workspace'}</span>
     </span>
@@ -438,7 +447,15 @@ export function DocumentLibraryWindowContent({
                         style={{ backgroundColor: source.agent?.color || 'var(--primary)' }}
                         aria-hidden="true"
                       >
-                        {source.agent?.initials || 'WS'}
+                        {source.agent ? (
+                          <AgentAvatar
+                            avatar={source.agent.avatar}
+                            name={source.agent.name}
+                            initials={source.agent.initials}
+                            className="size-5 rounded-full"
+                            fallbackClassName="bg-transparent text-[9px] text-white"
+                          />
+                        ) : 'WS'}
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm text-foreground">

@@ -208,6 +208,18 @@ test('Netlify forwards authored template writes and public webhook triggers', as
  assert.deepEqual(JSON.parse(requests[0].init.body), { export: { slug: 'pack' } });
 
  requests.length = 0;
+ const bundlePreviewResponse = await handler(new Request(
+  'https://app.example.test/backend/workspaces/ws-1/agent-templates/import-bundle/preview',
+  { method: 'POST', headers: {
+   Authorization: 'Bearer owner-session',
+   'Content-Type': 'application/json',
+  }, body: JSON.stringify({ bundle: 'ZmFrZQ==' }) },
+ ));
+ assert.equal(bundlePreviewResponse.status, 200);
+ assert.equal(requests[0].url, 'https://agensis-backend.example.test/backend/workspaces/ws-1/agent-templates/import-bundle/preview');
+ assert.deepEqual(JSON.parse(requests[0].init.body), { bundle: 'ZmFrZQ==' });
+
+ requests.length = 0;
  const webhookResponse = await handler(new Request(
   'https://app.example.test/backend/webhooks/webhook-token',
   { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: 'run' }) },

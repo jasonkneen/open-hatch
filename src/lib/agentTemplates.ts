@@ -666,7 +666,7 @@ export type GalleryTemplate = AgentTemplate & {
   stored?: StoredAgentTemplate;
 };
 
-function storedToGalleryTemplate(stored: StoredAgentTemplate): GalleryTemplate {
+export function storedToGalleryTemplate(stored: StoredAgentTemplate): GalleryTemplate {
   const purpose = normalizeAgentPurpose(stored.purpose);
   return {
     id: `authored:${stored.slug}`,

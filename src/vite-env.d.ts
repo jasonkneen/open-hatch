@@ -42,6 +42,11 @@ interface Window {
   /** Electron desktop shell bridge (pty, folder picker, local agents, local runtime). */
   electronAPI?: {
     pickFolder: () => Promise<string | null>;
+    onAgentBundleOpen?: (callback: (payload: {
+      name?: string;
+      bytes?: Uint8Array;
+      error?: string;
+    }) => void) => () => void;
     /** Probe THIS machine for claude/codex/amp/grok/… (not the remote backend). */
     discoverLocalAgents?: (options?: {
       workspacePath?: string;

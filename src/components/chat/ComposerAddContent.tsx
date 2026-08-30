@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Bot, Command as CommandIcon, FileText, FolderOpen, HardDrive, Layers, Paperclip, Sparkles, Upload, Wrench, X } from 'lucide-react';
 import type { CanvasGroup, Document, UploadedFile, WorkspaceAgent } from '../../types';
 import { Button } from '@/components/ui/button';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import { agentHandle } from '../../lib/agentAccent';
 import { safeAttachmentSize } from '../../lib/messageAttachments';
 
@@ -200,7 +201,15 @@ export function ComposerAddContent({
         {agents.length > 0 ? agents.slice(0, 8).map(agent => (
           <ComposerAddRow
             key={agent.id}
-            icon={<Bot />}
+            icon={(
+              <AgentAvatar
+                avatar={agent.avatar}
+                name={agent.name}
+                initials={agent.name.slice(0, 2).toUpperCase()}
+                className="size-4 rounded-md"
+                fallbackClassName="bg-transparent text-[8px] text-muted-foreground"
+              />
+            )}
             label={agent.name}
             detail={`@${agentHandle(agent)}`}
             onClick={() => onAddAgent(agent)}

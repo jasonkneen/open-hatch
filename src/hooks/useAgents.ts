@@ -6,6 +6,7 @@ import { useTableSubscription, useRealtimeDeduper } from './useTableSubscription
 import { useWorkspaceListState, useWorkspaceState } from './useWorkspaceState';
 import type { WorkspaceAgent } from '../types';
 import type { AgentPurpose, ResourceFacet } from '../lib/agentPurpose';
+import { resolveAgentAvatar } from '../lib/agentAvatars';
 
 export interface CreateAgentResult {
   agent: WorkspaceAgent | null;
@@ -45,10 +46,21 @@ function agentHandle(value: string) {
     .slice(0, 40) || 'agent';
 }
 
+function normalizeAgent(agent: WorkspaceAgent): WorkspaceAgent {
+  return {
+    ...agent,
+    avatar: resolveAgentAvatar(agent.avatar, agent.name),
+  };
+}
+
+function normalizeAgents(agents: WorkspaceAgent[]) {
+  return agents.map(normalizeAgent);
+}
+
 export function useAgents(workspaceId: string | null, userId?: string, seed?: WorkspaceAgent[] | null) {
   const [agents, setAgents, beginAgentsRequest] = useWorkspaceListState<WorkspaceAgent>(
     workspaceId,
-    (seed || []).filter(agent => agent.workspace_id === workspaceId),
+    normalizeAgents((seed || []).filter(agent => agent.workspace_id === workspaceId)),
   );
   const [loading, setLoading] = useWorkspaceState(
     workspaceId,
@@ -57,7 +69,7 @@ export function useAgents(workspaceId: string | null, userId?: string, seed?: Wo
   );
 
   useEffect(() => {
-    if (seed) setAgents(seed.filter(agent => agent.workspace_id === workspaceId));
+    if (seed) setAgents(normalizeAgents(seed.filter(agent => agent.workspace_id === workspaceId)));
   }, [seed, setAgents, workspaceId]);
 
   const fetchAgents = useCallback(async () => {
@@ -77,7 +89,7 @@ export function useAgents(workspaceId: string | null, userId?: string, seed?: Wo
         if (!response.ok) throw new Error(payload?.error?.message || `Agents HTTP ${response.status}`);
         return payload?.data ?? [];
       });
-      if (isCurrent() && data) setAgents(data);
+      if (isCurrent() && data) setAgents(normalizeAgents(data));
     } finally {
       if (isCurrent()) setLoading(false);
     }
@@ -102,11 +114,13 @@ export function useAgents(workspaceId: string | null, userId?: string, seed?: Wo
       if (payload.eventType === 'INSERT') {
         const row = payload.new;
         if (!row) return;
-        setAgents(prev => prev.some(a => a.id === row.id) ? prev : [...prev, row]);
+        const agent = normalizeAgent(row as WorkspaceAgent);
+        setAgents(prev => prev.some(a => a.id === agent.id) ? prev : [...prev, agent]);
       } else if (payload.eventType === 'UPDATE') {
         const row = payload.new;
         if (!row) return;
-        setAgents(prev => prev.map(a => a.id === row.id ? row : a));
+        const agent = normalizeAgent(row as WorkspaceAgent);
+        setAgents(prev => prev.map(a => a.id === agent.id ? agent : a));
       } else if (payload.eventType === 'DELETE') {
         const row = payload.old;
         if (!row?.id) return;
@@ -125,7 +139,7 @@ export function useAgents(workspaceId: string | null, userId?: string, seed?: Wo
       workspace_id: workspaceId,
       created_by: userId ?? null,
       name: input.name,
-      avatar: input.avatar ?? 'AI',
+      avatar: resolveAgentAvatar(input.avatar, input.name),
       openpet_avatar_id: input.openpet_avatar_id ?? '',
       accent_color: input.accent_color ?? '#00a95c',
       description: input.description ?? '',
@@ -147,7 +161,7 @@ export function useAgents(workspaceId: string | null, userId?: string, seed?: Wo
       ambient_replies: input.ambient_replies ?? true,
     }, `agents_${workspaceId}`);
     if (data) {
-      const agent = data as unknown as WorkspaceAgent;
+      const agent = normalizeAgent(data as unknown as WorkspaceAgent);
       setAgents(prev => prev.some(a => a.id === agent.id) ? prev : [...prev, agent]);
       return { agent, failure: null };
     }
@@ -157,7 +171,7 @@ export function useAgents(workspaceId: string | null, userId?: string, seed?: Wo
   const updateAgent = useCallback(async (id: string, updates: Partial<WorkspaceAgent>) => {
     const result = await offlineUpdate('workspace_agents', id, updates as Record<string, unknown>, `agents_${workspaceId}`);
     if (result) {
-      setAgents(prev => prev.map(a => a.id === id ? { ...a, ...result } as WorkspaceAgent : a));
+      setAgents(prev => prev.map(a => a.id === id ? normalizeAgent({ ...a, ...result } as WorkspaceAgent) : a));
     }
     return result;
   }, [setAgents, workspaceId]);

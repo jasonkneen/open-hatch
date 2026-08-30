@@ -4,6 +4,7 @@ import type { FloatingWindow, PresenceVisibilityMode } from '../../types';
 import { windowLabel, type WorkspacePresenceUser } from '../../hooks/useWorkspacePresence';
 import { CHROME_DEPTH } from '../../lib/chromeDepth';
 import { cn } from '../../lib/utils';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { Avatar, AvatarBadge, AvatarFallback, AvatarGroup, AvatarGroupCount } from '../ui/avatar';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -61,8 +62,8 @@ import { Separator } from '../ui/separator';
  *   collision/anchor/outside-click logic to keep correct.
  * - **Surface colours come from tokens** (`bg-popover`, `border`, `muted`,
  *   `accent`) so `neo-surfaces`' contrast work applies here without an edit.
- * - **No emoji anywhere.** Agent identity is initials on the agent-avatar
- *   palette colour the hook already assigns.
+ * - **No emoji anywhere.** Humans keep their initials; agents use their
+ *   selected avatar, with the automatic Blobatar as the default.
  */
 
 const MODE_OPTIONS: Array<{ value: PresenceVisibilityMode; label: string }> = [
@@ -87,6 +88,16 @@ function initials(name: string): string {
   if (words.length === 0) return '?';
   if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
   return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+function presenceAvatar(person: WorkspacePresenceUser): string {
+  return person.kind === 'agent' ? person.avatar || '' : '';
+}
+
+/** Shared media branch for the compact group and the full roster row. */
+function PresenceAvatarMedia({ person }: { person: WorkspacePresenceUser }) {
+  if (person.kind !== 'agent') return null;
+  return <AgentAvatar avatar={presenceAvatar(person)} name={person.name} initials={initials(person.name)} className="size-full" fallbackClassName="bg-transparent text-[11px] font-bold text-white" />;
 }
 
 /** The one-line answer to "what are they doing", per participant kind. */
@@ -212,6 +223,7 @@ export function PresenceRoster({
                     title={`${person.name}${person.isCurrentUser ? ' (you)' : ''}`}
                     className={cn(modeClass(getMode(person.id)))}
                   >
+                    <PresenceAvatarMedia person={person} />
                     <AvatarFallback
                       className="text-[10px] font-bold text-white"
                       style={{ backgroundColor: person.color }}
@@ -378,6 +390,7 @@ function PresenceRow({
       )}
     >
       <Avatar className={cn('size-8', modeClass(mode))}>
+        <PresenceAvatarMedia person={person} />
         <AvatarFallback className="text-[11px] font-bold text-white" style={{ backgroundColor: person.color }}>
           {initials(person.name)}
         </AvatarFallback>

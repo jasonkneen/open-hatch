@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react';
-import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { isImageAvatar, isPetSpritesheetAvatar, renderablePetAssetUrl } from '@/lib/openpets';
+import { isPetSpritesheetAvatar, renderablePetAssetUrl } from '@/lib/openpets';
+import { AgentAvatar } from '@/components/agents/AgentAvatar';
 import type { AgentAccentStyle } from '@/lib/agentAccent';
 import { huddleShortcutIndex, isTextEntryTarget, type HuddleAgentOption } from '@/lib/huddleAgents';
 
@@ -121,8 +121,10 @@ function HuddleAgentChip({
 }
 
 /**
- * The same three avatar branches the sidebar and the transcript use — animated
- * pet, image, or a fallback — so an agent looks like itself here.
+ * Keep the strip on the same avatar renderer as the rest of the app. The
+ * animated-pet shell is retained because it needs the sprite animation wrapper;
+ * everything else, including the automatic Blobatar default, goes through the
+ * shared renderer.
  *
  * The fallback is initials rather than a robot glyph: a strip of identical Bot
  * icons tells you nothing about which one is which, which is the entire job of
@@ -143,24 +145,15 @@ function HuddleAgentFace({ agent }: { agent: HuddleAgentOption }) {
     );
   }
 
-  if (avatar && isImageAvatar(avatar)) {
-    return (
-      <img
-        src={renderablePetAssetUrl(avatar)}
-        alt=""
-        className="size-6 shrink-0 rounded object-cover"
-        loading="lazy"
-        draggable={false}
-      />
-    );
-  }
-
   return (
-    // bg-foreground/5 rather than bg-muted: a grey tile sits badly inside the
-    // accent-tinted active chip, where this should read as part of the tint.
-    <span className="grid size-6 shrink-0 place-items-center rounded bg-foreground/5 text-[9px] font-semibold leading-none">
-      {initials || <Bot className="size-3.5" aria-hidden />}
-    </span>
+    <AgentAvatar
+      avatar={avatar}
+      name={agent.name}
+      initials={initials}
+      alt=""
+      className="size-6 shrink-0 rounded"
+      fallbackClassName="bg-foreground/5 text-[9px] font-semibold leading-none"
+    />
   );
 }
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties }
 import { Bot, Check, CornerDownRight, Pencil, Send, Trash2, User, X } from 'lucide-react';
 import { ChatArtifact, extractHtmlArtifact } from './ChatArtifact';
 import { ThreadWorkBadge } from './AgentWorkBadge';
+import { AgentAvatar } from '../agents/AgentAvatar';
 import { ThreadStopButton } from './StopAgentButton';
 import { MarkdownContent } from './MarkdownContent';
 import { ReactionBar } from './ReactionBar';
@@ -237,6 +238,7 @@ export function ChatThreadPanel({
         <ThreadBubble
           msg={parentMessage}
           accent={resolveMessageAccent?.(parentMessage)}
+          agentAvatar={agentAvatarForMessage(agents, parentMessage)}
           onAgentProfile={onAgentProfile}
           currentUserId={readOnly ? null : currentUserId}
           isParent
@@ -284,6 +286,7 @@ export function ChatThreadPanel({
                         <ThreadBubble
                           msg={row.message}
                           accent={resolveMessageAccent?.(row.message)}
+                          agentAvatar={agentAvatarForMessage(agents, row.message)}
                           onAgentProfile={onAgentProfile}
                           currentUserId={readOnly ? null : currentUserId}
                           isStreaming={streaming && isLastRow && row.message.role === 'assistant'}
@@ -369,9 +372,18 @@ export function ChatThreadPanel({
 // same branch, so there are no pills to click.
 const NOOP_TOGGLE = () => {};
 
+function agentAvatarForMessage(agents: WorkspaceAgent[] | undefined, message: ChatMessage): string | null {
+  if (message.sender_kind !== 'agent' && message.role !== 'assistant') return null;
+  const key = String(message.sender_id || message.sender_name || '').trim().toLowerCase();
+  if (!key) return null;
+  return agents?.find(agent => [agent.id, agent.handle, agent.name]
+    .some(value => String(value || '').trim().toLowerCase() === key))?.avatar || null;
+}
+
 export function ThreadBubble({
   msg,
   accent,
+  agentAvatar,
   onAgentProfile,
   isStreaming,
   isParent,
@@ -386,6 +398,7 @@ export function ThreadBubble({
 }: {
   msg: ChatMessage;
   accent?: string;
+  agentAvatar?: string | null;
   onAgentProfile?: (agentIdOrHandle: string) => void;
   isStreaming?: boolean;
   isParent?: boolean;
@@ -452,7 +465,15 @@ export function ThreadBubble({
       style={accentStyle}
     >
       <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        {isUser ? <User className="size-3.5" /> : <Bot className="size-3.5" />}
+        {isUser ? <User className="size-3.5" /> : msg.sender_kind === 'agent' || msg.role === 'assistant' ? (
+          <AgentAvatar
+            avatar={agentAvatar}
+            name={senderName}
+            initials={senderName.slice(0, 2).toUpperCase()}
+            className="size-7 rounded-md"
+            fallbackClassName="bg-transparent text-[10px] text-muted-foreground"
+          />
+        ) : <Bot className="size-3.5" />}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
