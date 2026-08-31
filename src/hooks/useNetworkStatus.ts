@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { apiAuthHeaders, apiUrl, backendClient } from '../lib/backendClient';
-import { peekQueue, dequeue, recordSyncFailure, clearQueue as clearOfflineQueue } from '../lib/offlineDb';
+import { peekQueue, queueCount, dequeue, recordSyncFailure, clearQueue as clearOfflineQueue } from '../lib/offlineDb';
 import type { OfflineMessageDispatch } from '../lib/offlineBackend';
 
 const DISPATCH_DECLINED_ON_MENTION_ONLY = 'channel_replies_on_mention_only';
@@ -183,6 +183,26 @@ export function useNetworkStatus(userId: string | null) {
 
   const flushQueue = useCallback(async () => {
     if (!userId || syncingRef.current || !navigator.onLine) return;
+
+    // Cheapest possible probe first. This runs on a 30s interval for the whole
+    // life of the session and on a healthy connection the queue is empty every
+    // single time: an IDB `count()` reads an index and deserialises nothing, where
+    // the `getAll()` below structured-clones every queued row (twice, with the
+    // re-read that used to sit in `finally`). Bailing here also keeps the idle
+    // path at ZERO state writes — the setSyncing(true)/(false) pair alone, split
+    // across an await so React cannot batch it, was two full App re-renders a
+    // minute for a queue with nothing in it.
+    try {
+      if (await queueCount() === 0) {
+        setPendingCount(prev => (prev === 0 ? prev : 0));
+        setSyncError(prev => (prev === null ? prev : null));
+        return;
+      }
+    } catch {
+      // The count failed (storage evicted mid-read). Fall through to the full
+      // path rather than skipping a flush — a skipped flush is a stuck message.
+    }
+
     syncingRef.current = true;
     setSyncing(true);
 
@@ -253,8 +273,11 @@ export function useNetworkStatus(userId: string | null) {
     } finally {
       syncingRef.current = false;
       setSyncing(false);
-      const remaining = await peekQueue();
-      setPendingCount(remaining.length);
+      // count(), not peekQueue(): this only needs the NUMBER still queued — it
+      // has to be re-read because entries can be enqueued while we flush — and
+      // the rows themselves are pure deserialisation cost at this point.
+      const remaining = await queueCount();
+      setPendingCount(prev => (prev === remaining ? prev : remaining));
     }
   }, [userId]);
 
@@ -280,7 +303,9 @@ export function useNetworkStatus(userId: string | null) {
       setSyncError(null);
       return;
     }
-    peekQueue().then(items => setPendingCount(items.length));
+    // The badge only needs the number, so count() rather than reading every
+    // queued row back out of IndexedDB on each sign-in.
+    void queueCount().then(count => setPendingCount(prev => (prev === count ? prev : count)));
   }, [userId]);
 
   return { online, syncing, pendingCount, syncError, flushQueue, clearPendingQueue };

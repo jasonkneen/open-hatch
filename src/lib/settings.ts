@@ -167,4 +167,32 @@ export function applyUiAppearanceSettings(settings: Pick<AppSettings, 'ui_font_f
   root.style.setProperty('--agensis-panel-alpha', `${panel}%`);
   root.style.setProperty('--agensis-sidebar-alpha', `${sidebar}%`);
   root.style.setProperty('--agensis-glass-blur', `${blur}px`);
+  // ZERO HAS TO MEAN NO FILTER, NOT A ZERO-RADIUS ONE.
+  //
+  // Every glass surface in index.css reads `backdrop-filter` from one of the
+  // three tokens below rather than from --agensis-glass-blur directly, and this
+  // is why. Writing only the px value meant a slider at 0 still produced
+  // `backdrop-filter: blur(0px) saturate(140%)` — the property is still there,
+  // so the compositor still gives the element its own render surface, still
+  // copies the backdrop into a texture and still runs the saturate colour matrix
+  // over it on every frame the region behind it changes. Dragging a window over
+  // a 0px-blurred sidebar cost exactly what dragging it over a 16px-blurred one
+  // cost, so the slider's escape hatch bought nothing on the machines that
+  // needed it. `none` removes the render surface entirely.
+  //
+  // These are set as inline styles on :root, so they beat the per-family
+  // declarations in index.css the same way --agensis-glass-blur always has.
+  if (blur <= 0) {
+    root.style.setProperty('--agensis-glass-filter', 'none');
+    root.style.setProperty('--agensis-glass-filter-soft', 'none');
+    root.style.setProperty('--agensis-glass-filter-subtle', 'none');
+  } else {
+    root.style.setProperty('--agensis-glass-filter', `blur(${blur}px) saturate(140%)`);
+    // In-panel rows and cards frost at 0.75x the panel radius — the same ratio
+    // the stylesheet used when it computed this with calc().
+    root.style.setProperty('--agensis-glass-filter-soft', `blur(${Math.round(blur * 75) / 100}px) saturate(140%)`);
+    // The fixed 3px scrims are not on the panel ladder; they only need to know
+    // whether glass is on at all.
+    root.style.setProperty('--agensis-glass-filter-subtle', 'blur(3px)');
+  }
 }

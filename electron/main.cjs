@@ -70,7 +70,7 @@ if (!singleInstanceLock) {
  });
 }
 
-function trustedRendererUrl(value) {
+function computeTrustedRendererUrl(value) {
   try {
     const url = new URL(String(value || ''));
     const devUrl = process.env.VITE_DEV_SERVER_URL;
@@ -81,6 +81,25 @@ function trustedRendererUrl(value) {
   } catch {
     return false;
   }
+}
+
+// Every pty keystroke and every resize frame reaches main through
+// trustedIpcSender, and the check above is a URL parse + fileURLToPath +
+// path.resolve each time. The verdict is a pure function of the URL string —
+// isDev and VITE_DEV_SERVER_URL are fixed for the life of the process — so
+// remembering it cannot change what is trusted; it only stops re-deriving the
+// same answer thousands of times a second. Bounded, because will-navigate feeds
+// this URLs an untrusted page chose.
+const trustedRendererUrlMemo = new Map();
+
+function trustedRendererUrl(value) {
+  const key = String(value || '');
+  const cached = trustedRendererUrlMemo.get(key);
+  if (cached !== undefined) return cached;
+  const verdict = computeTrustedRendererUrl(key);
+  if (trustedRendererUrlMemo.size >= 32) trustedRendererUrlMemo.clear();
+  trustedRendererUrlMemo.set(key, verdict);
+  return verdict;
 }
 
 function trustedIpcSender(event) {
@@ -109,6 +128,12 @@ function createWindow() {
     minWidth: 800,
     minHeight: 600,
     backgroundColor: '#0c0c0c',
+    // Stay off screen until the renderer has painted (see 'ready-to-show'
+    // below). A window that is shown immediately composites — and on macOS runs
+    // its open animation — over the empty background fill while the bundle is
+    // still parsing and executing, which is the heaviest moment of the launch,
+    // and it flashes empty chrome on the way.
+    show: false,
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     // Nudge the macOS traffic lights left + up so they sit inside the app's top
     // strip (the renderer reserves DESKTOP_TITLEBAR_INSET px of clear space at
@@ -124,6 +149,11 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // Chromium's default: renderer timers and rAF are throttled while the
+      // window is hidden or occluded. Pinned explicitly because it is load-
+      // bearing for idle CPU here (the app keeps realtime timers running) and
+      // because turning it off is the tempting "fix" for a background stall.
+      backgroundThrottling: true,
       preload: path.join(__dirname, 'preload.cjs'),
       // The reason the desktop shell exists: <webview> is a Chromium guest
       // composited INSIDE the page, so it obeys CSS z-index (app chrome can sit
@@ -136,6 +166,15 @@ function createWindow() {
   });
   mainWindow = win;
   rendererReady = false;
+  win.once('ready-to-show', () => {
+    if (!win.isDestroyed()) win.show();
+  });
+  // Belt and braces for the `show: false` above: a load that never paints (dev
+  // server down, missing dist/) never fires ready-to-show, and a permanently
+  // hidden window is indistinguishable from a hung app.
+  win.webContents.on('did-fail-load', () => {
+    if (!win.isDestroyed() && !win.isVisible()) win.show();
+  });
   win.webContents.once('did-finish-load', () => {
     rendererReady = true;
     void flushAgentBundlePaths();
@@ -186,7 +225,15 @@ function createWindow() {
   const devUrl = process.env.VITE_DEV_SERVER_URL;
   if (isDev && devUrl) {
     win.loadURL(devUrl);
-    win.webContents.openDevTools({ mode: 'detach' });
+    // Detached DevTools is a SECOND renderer whose whole job is to consume a
+    // CDP firehose (DOM mutations, style recalcs, console, network) from this
+    // one, so it materially inflates the renderer CPU anyone is trying to
+    // measure — and agent streaming is a continuous mutation stream. On by
+    // default because that is what a dev wants; AGENSIS_DEVTOOLS=0 opts out for
+    // a clean profiling run.
+    if (process.env.AGENSIS_DEVTOOLS !== '0') {
+      win.webContents.openDevTools({ mode: 'detach' });
+    }
   } else {
     win.loadFile(path.join(__dirname, '..', 'dist', 'index.html'));
   }
@@ -201,6 +248,18 @@ const ptySessions = new Map();
 /** webContents -> the session ids it owns, so one window teardown reaps them all. */
 const ptyOwners = new Map();
 let ptyCounter = 0;
+
+// node-pty emits one `data` event per read from the master fd, so a build log,
+// a `cat` or an npm install is hundreds to thousands of small chunks a second.
+// One webContents.send each meant one structured clone + IPC hop + renderer
+// task + xterm write each, to paint at most 60 frames — so chunks are coalesced
+// into a single send per short window. Nothing is dropped or reordered: the
+// renderer receives exactly the same byte stream, in far fewer messages, and
+// the buffer is flushed before the exit notice.
+/** Coalescing window for pty output, in ms — under half a 60Hz frame. */
+const PTY_FLUSH_MS = 8;
+/** A firehose flushes at this size instead of growing a string for the window. */
+const PTY_FLUSH_MAX_CHARS = 64 * 1024;
 
 function loadPty() {
   try {
@@ -229,13 +288,33 @@ ipcMain.handle('pty:spawn', async (event, options) => {
     env: { ...process.env, TERM: 'xterm-256color' },
   });
 
-  session.onData(chunk => {
+  let pendingData = '';
+  let flushTimer = null;
+  const flushPtyData = () => {
+    if (flushTimer !== null) {
+      clearTimeout(flushTimer);
+      flushTimer = null;
+    }
+    if (!pendingData) return;
+    const payload = pendingData;
+    pendingData = '';
     // The window can be gone before the shell notices; writing to a destroyed
     // sender throws and would take the main process with it.
-    if (!sender.isDestroyed()) sender.send(`pty:data:${id}`, chunk);
+    if (!sender.isDestroyed()) sender.send(`pty:data:${id}`, payload);
+  };
+
+  session.onData(chunk => {
+    pendingData += chunk;
+    if (pendingData.length >= PTY_FLUSH_MAX_CHARS) {
+      flushPtyData();
+      return;
+    }
+    if (flushTimer === null) flushTimer = setTimeout(flushPtyData, PTY_FLUSH_MS);
   });
 
   session.onExit(({ exitCode }) => {
+    // Trailing output has to reach the terminal before the exit notice does.
+    flushPtyData();
     ptySessions.delete(id);
     ptyOwners.get(sender)?.delete(id);
     if (!sender.isDestroyed()) sender.send(`pty:exit:${id}`, exitCode);
@@ -359,15 +438,61 @@ function syncLoginItemFromAutostart() {
   }
 }
 
+// Both probes below are SYNCHRONOUS filesystem work on the main thread — a
+// discover sweep is ~30-40 PATH resolutions (statSync/accessSync across every
+// PATH dir, plus an nvm readdirSync per miss) and a `--version` child process
+// for every CLI that resolves; listRuntimes() is another ~15-17. Nothing in
+// them is memoised downstream, and the renderer re-asks constantly: App.tsx
+// re-runs discover on every workspace/layer switch, the Agents window fires its
+// own on mount, and the Connect dialog's effect re-runs listRuntimes on every
+// realtime agent UPDATE. Same answer, browser process blocked each time.
+//
+// So both answers are cached for a minute and concurrent callers share one
+// in-flight sweep. A Rescan (options.refresh — Settings → Tools) always bypasses
+// and refills BOTH, because "I just installed something" invalidates every
+// probe in this process, not only the one being asked for.
+const LOCAL_PROBE_TTL_MS = 60_000;
+/** @type {Map<string, { at: number, promise: Promise<unknown> }>} */
+const localCapabilityCache = new Map();
+/** @type {{ at: number, data: unknown } | null} */
+let localRuntimeListCache = null;
+
+function invalidateLocalProbeCaches() {
+  localCapabilityCache.clear();
+  localRuntimeListCache = null;
+}
+
 ipcMain.handle('local-agents:discover', async (event, options = {}) => {
   if (!trustedIpcSender(event)) return { ok: false, error: 'Untrusted renderer' };
   try {
-    if (options?.refresh) refreshLoginShellPath();
-    const data = await detectLocalAgentCapabilities({
-      workspacePath: typeof options?.workspacePath === 'string' ? options.workspacePath : '',
-      refresh: Boolean(options?.refresh),
+    const workspacePath = typeof options?.workspacePath === 'string' ? options.workspacePath : '';
+    const refresh = Boolean(options?.refresh);
+    if (refresh) {
+      refreshLoginShellPath();
+      invalidateLocalProbeCaches();
+    }
+    const cached = localCapabilityCache.get(workspacePath);
+    if (cached && Date.now() - cached.at < LOCAL_PROBE_TTL_MS) {
+      return { ok: true, data: await cached.promise };
+    }
+    const entry = {
+      at: Date.now(),
+      promise: detectLocalAgentCapabilities({ workspacePath, refresh }),
+    };
+    // A failed sweep must not be remembered for the whole TTL, and the rejection
+    // needs an owner even when no caller is awaiting this entry any more.
+    entry.promise.catch(() => {
+      if (localCapabilityCache.get(workspacePath) === entry) {
+        localCapabilityCache.delete(workspacePath);
+      }
     });
-    return { ok: true, data };
+    // Keys are workspace paths, so growth is bounded by the workspaces visited
+    // in a session — but bound it anyway rather than hold snapshots forever.
+    if (localCapabilityCache.size >= 8) {
+      localCapabilityCache.delete(localCapabilityCache.keys().next().value);
+    }
+    localCapabilityCache.set(workspacePath, entry);
+    return { ok: true, data: await entry.promise };
   } catch (error) {
     return { ok: false, error: error?.message || String(error) };
   }
@@ -382,30 +507,176 @@ ipcMain.handle('local-runtime:list', async (event, options = {}) => {
   try {
     // Only re-probe login-shell PATH on explicit refresh — every open of Agents
     // used to spawnSync zsh -l and freeze the UI (beachball).
-    if (options?.refresh) refreshLoginShellPath();
-    return { ok: true, data: localRuntime.listRuntimes() };
+    if (options?.refresh) {
+      refreshLoginShellPath();
+      invalidateLocalProbeCaches();
+    }
+    const now = Date.now();
+    if (localRuntimeListCache && now - localRuntimeListCache.at < LOCAL_PROBE_TTL_MS) {
+      return { ok: true, data: localRuntimeListCache.data };
+    }
+    const data = localRuntime.listRuntimes();
+    localRuntimeListCache = { at: now, data };
+    return { ok: true, data };
   } catch (error) {
     return { ok: false, error: error?.message || String(error) };
   }
 });
 
+// The agent detail pane polls local-runtime:status every 4s for as long as it
+// is open. store.list() and store.shouldOpenAtLogin() each do their OWN
+// readFileSync + JSON.parse of the autostart manifest, so every tick was two
+// synchronous disk reads on the thread that also serves window events and IPC.
+// The manifest only ever changes when this process writes it, so the derived
+// view is cached behind a single statSync: unchanged mtime+size (or a still-
+// absent file) answers from memory. Our own writes also invalidate explicitly,
+// because a rewrite inside the same millisecond that happens to land on the
+// same byte length would not move the stamp.
+/** @type {{ stamp: string, agents: unknown[], openAtLogin: boolean } | null} */
+let autostartViewCache = null;
+
+function invalidateAutostartView() {
+  autostartViewCache = null;
+}
+
+function readAutostartView() {
+  const store = getLocalRuntimeAutostart();
+  let stamp;
+  try {
+    const stat = fs.statSync(store.manifestPath());
+    stamp = `${stat.mtimeMs}:${stat.size}`;
+  } catch {
+    stamp = 'absent';
+  }
+  if (autostartViewCache && autostartViewCache.stamp === stamp) return autostartViewCache;
+  autostartViewCache = {
+    stamp,
+    agents: store.list().map((a) => ({
+      agentId: a.agentId,
+      runtime: a.runtime,
+      autoStart: a.autoStart !== false,
+      savedAt: a.savedAt,
+    })),
+    openAtLogin: store.shouldOpenAtLogin(),
+  };
+  return autostartViewCache;
+}
+
 ipcMain.handle('local-runtime:status', async (event, agentId) => {
   if (!trustedIpcSender(event)) return { ok: false, error: 'Untrusted renderer' };
-  const store = getLocalRuntimeAutostart();
+  // `agents` is shared with the cache rather than rebuilt per poll; it crosses
+  // the IPC boundary by structured clone, so the renderer still gets its own
+  // copy and nothing here mutates it.
+  const autostart = readAutostartView();
   return {
     ok: true,
     data: {
       session: localRuntime.status(agentId),
       running: localRuntime.listRunning(),
-      autostart: store.list().map((a) => ({
-        agentId: a.agentId,
-        runtime: a.runtime,
-        autoStart: a.autoStart !== false,
-        savedAt: a.savedAt,
-      })),
-      openAtLogin: store.shouldOpenAtLogin(),
+      autostart: autostart.agents,
+      openAtLogin: autostart.openAtLogin,
     },
   };
+});
+
+// Daemon stdout/stderr used to reach the renderer one IPC message per LINE:
+// supervisor.appendLog splits every chunk and calls onLog for each non-empty
+// line, and each call was a structured clone + IPC hop + renderer task — for a
+// channel nothing in the renderer subscribes to, so all of it was discarded on
+// arrival. The fan-out is therefore opt-in: a window asks for an agent's log
+// with 'local-runtime:log-subscribe' (and drops it with the -unsubscribe
+// twin), and with no subscriber the emitter returns on a single Map size read
+// before allocating anything. The supervisor still keeps lastLog/lastError for
+// the status UI, so nothing that is displayed depends on this stream.
+/** @type {Map<string, Set<Electron.WebContents>>} */
+const localRuntimeLogSubscribers = new Map();
+
+/** Flush window for a watched log — ~6 messages a second instead of thousands. */
+const LOCAL_RUNTIME_LOG_FLUSH_MS = 100;
+/** Flush early rather than grow an unbounded string for a storming daemon. */
+const LOCAL_RUNTIME_LOG_MAX_CHARS = 64 * 1024;
+
+/** Live subscribers for one agent, pruning windows that have gone away. */
+function localRuntimeLogTargets(agentId) {
+  const subs = localRuntimeLogSubscribers.get(String(agentId || ''));
+  if (!subs) return null;
+  for (const sender of subs) {
+    if (sender.isDestroyed()) subs.delete(sender);
+  }
+  if (subs.size === 0) {
+    localRuntimeLogSubscribers.delete(String(agentId || ''));
+    return null;
+  }
+  return subs;
+}
+
+function createLocalRuntimeLogEmitter(agentId) {
+  const key = String(agentId || '');
+  const channel = `local-runtime:log:${agentId}`;
+  let queued = [];
+  let queuedChars = 0;
+  let timer = null;
+
+  const flush = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+    if (queued.length === 0) return;
+    // One message per window instead of one per line. The payload stays a
+    // string — the onLog(line) bridge contract — with the lines rejoined in
+    // order, so a subscriber appending them sees exactly the text the
+    // unbatched path produced, nothing dropped and nothing reordered.
+    const payload = queued.join('\n');
+    queued = [];
+    queuedChars = 0;
+    const targets = localRuntimeLogTargets(agentId);
+    if (!targets) return;
+    for (const sender of targets) sender.send(channel, payload);
+  };
+
+  return (line) => {
+    // Two-tier gate. The size read costs nothing and covers the normal case,
+    // where nothing anywhere is watching a daemon log; the per-agent lookup
+    // only runs when some agent's log IS being watched.
+    if (localRuntimeLogSubscribers.size === 0) return;
+    if (!localRuntimeLogSubscribers.has(key)) return;
+    queued.push(line);
+    queuedChars += line.length + 1;
+    if (queuedChars >= LOCAL_RUNTIME_LOG_MAX_CHARS) {
+      flush();
+      return;
+    }
+    if (timer === null) timer = setTimeout(flush, LOCAL_RUNTIME_LOG_FLUSH_MS);
+  };
+}
+
+ipcMain.handle('local-runtime:log-subscribe', (event, agentId) => {
+  if (!trustedIpcSender(event)) return { ok: false, error: 'Untrusted renderer' };
+  const id = String(agentId || '').trim();
+  if (!id) return { ok: false, error: 'agentId is required' };
+  let subs = localRuntimeLogSubscribers.get(id);
+  if (!subs) {
+    subs = new Set();
+    localRuntimeLogSubscribers.set(id, subs);
+  }
+  // No 'destroyed' listener per subscription: several agents share one
+  // webContents and that would trip Node's max-listeners warning the way the
+  // pty owners map already documents. Dead senders are pruned on the next
+  // flush instead.
+  subs.add(event.sender);
+  return { ok: true };
+});
+
+ipcMain.handle('local-runtime:log-unsubscribe', (event, agentId) => {
+  if (!trustedIpcSender(event)) return { ok: false, error: 'Untrusted renderer' };
+  const id = String(agentId || '').trim();
+  const subs = localRuntimeLogSubscribers.get(id);
+  if (subs) {
+    subs.delete(event.sender);
+    if (subs.size === 0) localRuntimeLogSubscribers.delete(id);
+  }
+  return { ok: true };
 });
 
 ipcMain.handle('local-runtime:start', async (event, options = {}) => {
@@ -431,6 +702,7 @@ ipcMain.handle('local-runtime:start', async (event, options = {}) => {
           permissionMode,
           autoStart: true,
         }, options.token);
+        invalidateAutostartView();
         syncLoginItemFromAutostart();
         console.log('[desktop-local] autostart saved', autostart, getLocalRuntimeAutostart().manifestPath());
       } catch (persistError) {
@@ -439,6 +711,7 @@ ipcMain.handle('local-runtime:start', async (event, options = {}) => {
       }
     }
 
+    const emitLog = createLocalRuntimeLogEmitter(options.agentId);
     const session = await localRuntime.start({
       agentId: options.agentId,
       workspaceId: options.workspaceId,
@@ -452,11 +725,7 @@ ipcMain.handle('local-runtime:start', async (event, options = {}) => {
       harnessId: options.harnessId,
       requiredRuntime: options.requiredRuntime,
       permissionMode,
-      onLog: (line) => {
-        if (!event.sender.isDestroyed()) {
-          event.sender.send(`local-runtime:log:${options.agentId}`, line);
-        }
-      },
+      onLog: emitLog,
       onExit: ({ agentId }) => {
         if (!event.sender.isDestroyed()) {
           event.sender.send('local-runtime:exit', { agentId });
@@ -482,6 +751,7 @@ ipcMain.handle('local-runtime:stop', async (event, agentId) => {
     const result = await localRuntime.stop(agentId);
     // Explicit Stop removes reboot restore (user chose offline).
     const forgotten = getLocalRuntimeAutostart().forget(agentId);
+    invalidateAutostartView();
     syncLoginItemFromAutostart();
     return { ok: true, data: { ...result, autostart: forgotten } };
   } catch (error) {
@@ -554,6 +824,17 @@ app.whenReady().then(async () => {
       const report = await restoreAutostartAgents(store, {
         maxAttempts: 6,
         attemptDelayMs: 3000,
+        // restore.cjs pipes every daemon stdout LINE through this same log
+        // (prefixed `[desktop-local:<agentId>] `), and its default is
+        // console.log — a synchronous write on the main thread for every line
+        // every restored daemon ever prints, for as long as the app runs, while
+        // the user is idle. Keep restore's own progress lines, which are the
+        // ones worth having, and drop the per-line firehose; the supervisor
+        // still holds lastLog/lastError for the UI.
+        log: (line) => {
+          if (typeof line === 'string' && line.startsWith('[desktop-local:')) return;
+          console.log(line);
+        },
       });
       console.log(
         `[desktop-local] restore complete attempted=${report.attempted} ok=${report.ok} failed=${report.failed}`,

@@ -181,16 +181,47 @@ function cleanDaemonStateDir(dir, { heartbeat = null } = {}) {
   }
 }
 
+// A private futex nobody ever wakes: Atomics.wait on it parks the thread for a
+// bounded time without executing anything. This is how you sleep synchronously
+// in Node without burning CPU, and stopDaemonPidSync has to stay synchronous —
+// the startup sweep and the CLI mirror both call it that way.
+const sleepBuffer = (() => {
+  try {
+    return new Int32Array(new SharedArrayBuffer(4));
+  } catch {
+    return null;
+  }
+})();
+let atomicsSleepUnavailable = sleepBuffer === null;
+
+function sleepSync(ms) {
+  if (!atomicsSleepUnavailable) {
+    try {
+      Atomics.wait(sleepBuffer, 0, 0, ms);
+      return;
+    } catch {
+      // Some embeddings refuse a blocking wait on their main thread. Note it
+      // once so the throw is not re-paid on every iteration, then spin.
+      atomicsSleepUnavailable = true;
+    }
+  }
+  const start = Date.now();
+  while (Date.now() - start < ms) { /* last-resort spin, see above */ }
+}
+
 function stopDaemonPidSync(pid, { killFn = process.kill, waitMs = 2500 } = {}) {
   if (!pid || pid === process.pid) return { stopped: false };
   if (!isProcessAlive(pid, killFn)) return { stopped: true };
   try { killFn(pid, 'SIGTERM'); } catch { /* gone */ }
   const deadline = Date.now() + waitMs;
   while (isProcessAlive(pid, killFn) && Date.now() < deadline) {
-    // busy-wait is intentional: before-restore on the main process must finish
-    // quickly and we only run this for hung pids, not every launch path forever.
-    const start = Date.now();
-    while (Date.now() - start < 50) { /* spin */ }
+    // Blocking is intentional — before-restore on the main process must not
+    // spawn on top of a pid that is still dying — but it must not be a spin.
+    // The old `while (Date.now() - start < 50) {}` called Date.now() millions of
+    // times per poll, pegging a core while the Electron main thread was already
+    // frozen: N hung daemons meant N x up to 2.5s of the browser process at
+    // 100% serving no IPC, no window events and no paint. Same wait, no CPU.
+    sleepSync(Math.max(1, Math.min(50, deadline - Date.now())));
   }
   if (isProcessAlive(pid, killFn)) {
     try { killFn(pid, 'SIGKILL'); } catch { /* gone */ }

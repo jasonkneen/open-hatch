@@ -42,6 +42,12 @@ interface RemotePresenceState {
   items: PresenceSnapshotItem[];
   windows: FloatingWindow[];
   activeLayerId: string | null;
+  /**
+   * The beat that last carried a CHANGE, not the peer's liveness clock.
+   * Liveness lives in `remoteLastSeenRef` instead — see the presence_snapshot
+   * handler: writing every keepalive into render state re-rendered the App root
+   * twice a second per idle collaborator for a number nothing draws.
+   */
   lastSeen: number;
 }
 
@@ -82,6 +88,73 @@ function publicWindowSnapshot(win: FloatingWindow, ownerUserId?: string): Floati
   };
 }
 
+function sameSnapshotItems(previous: PresenceSnapshotItem[], next: PresenceSnapshotItem[]): boolean {
+  if (previous.length !== next.length) return false;
+  for (let i = 0; i < previous.length; i += 1) {
+    if (
+      previous[i].type !== next[i].type
+      || previous[i].itemId !== next[i].itemId
+      || !!previous[i].typing !== !!next[i].typing
+    ) return false;
+  }
+  return true;
+}
+
+function sameSharedWindows(previous: FloatingWindow[], next: FloatingWindow[]): boolean {
+  if (previous.length !== next.length) return false;
+  for (let i = 0; i < previous.length; i += 1) {
+    const before = previous[i];
+    const after = next[i];
+    if (
+      before.id !== after.id
+      || before.type !== after.type
+      || before.title !== after.title
+      || before.x !== after.x
+      || before.y !== after.y
+      || before.width !== after.width
+      || before.height !== after.height
+      || before.zIndex !== after.zIndex
+      || before.minimized !== after.minimized
+      || !!before.maximized !== !!after.maximized
+      || before.canvasId !== after.canvasId
+      || before.sessionId !== after.sessionId
+      || before.documentId !== after.documentId
+      || (before.ownerUserId || null) !== (after.ownerUserId || null)
+      || !!before.isPrivate !== !!after.isPrivate
+      || !!before.locked !== !!after.locked
+      || !!before.shared !== !!after.shared
+    ) return false;
+    const beforeBounds = before.restoreBounds;
+    const afterBounds = after.restoreBounds;
+    if (!!beforeBounds !== !!afterBounds) return false;
+    if (beforeBounds && afterBounds && (
+      beforeBounds.x !== afterBounds.x
+      || beforeBounds.y !== afterBounds.y
+      || beforeBounds.width !== afterBounds.width
+      || beforeBounds.height !== afterBounds.height
+    )) return false;
+  }
+  return true;
+}
+
+/**
+ * Does this frame draw the same as what we already hold? Deliberately ignores
+ * `lastSeen`: it is the one field that differs on EVERY beat and the one field
+ * nothing renders. Everything compared here is something the roster, the shared
+ * window layer or the per-item avatars actually paint.
+ */
+function samePresenceSnapshot(
+  previous: RemotePresenceState | undefined,
+  snapshot: PresenceSnapshotPayload,
+): boolean {
+  if (!previous) return false;
+  return previous.name === snapshot.name
+    && previous.color === snapshot.color
+    && previous.activeLayerId === (snapshot.activeLayerId || null)
+    && sameSnapshotItems(previous.items, snapshot.items || [])
+    && sameSharedWindows(previous.windows, snapshot.windows || []);
+}
+
 export function useItemPresence(
   workspaceId: string | null,
   windows: FloatingWindow[],
@@ -97,6 +170,8 @@ export function useItemPresence(
   const windowsRef = useRef<FloatingWindow[]>(windows);
   const heartbeatRef = useRef<number | null>(null);
   const knownRemoteIdsRef = useRef<Set<string>>(new Set());
+  // Peer liveness, deliberately outside React state — see RemotePresenceState.
+  const remoteLastSeenRef = useRef<Map<string, number>>(new Map());
   const displayName = userEmail?.split('@')[0] || 'Anonymous';
   const color = userId ? pickColor(userId) : '#3b82f6';
 
@@ -166,13 +241,27 @@ export function useItemPresence(
 
   const pruneStaleUsers = useCallback(() => {
     const cutoff = Date.now() - 7000;
+    // Reads the liveness ref, not the state entries, because the state entries
+    // are no longer re-stamped by a beat that changed nothing. Nothing is
+    // written to React state unless somebody actually has to disappear, so this
+    // costs zero renders on the (overwhelmingly common) tick where every peer is
+    // still there.
+    let expired: string[] | null = null;
+    for (const [id, lastSeen] of remoteLastSeenRef.current) {
+      if (lastSeen < cutoff) (expired ||= []).push(id);
+    }
+    if (!expired) return;
+    const expiredIds = expired;
+    for (const id of expiredIds) {
+      remoteLastSeenRef.current.delete(id);
+      knownRemoteIdsRef.current.delete(id);
+    }
     setRemotePresence(prev => {
       let changed = false;
       const next = { ...prev };
-      for (const [id, state] of Object.entries(next)) {
-        if (state.lastSeen < cutoff) {
+      for (const id of expiredIds) {
+        if (id in next) {
           delete next[id];
-          knownRemoteIdsRef.current.delete(id);
           changed = true;
         }
       }
@@ -217,8 +306,9 @@ export function useItemPresence(
 
   useEffect(() => {
     if (!workspaceId || !userId) {
-      setRemotePresence({});
-      setTypingState({});
+      remoteLastSeenRef.current.clear();
+      setRemotePresence(prev => Object.keys(prev).length ? {} : prev);
+      setTypingState(prev => Object.keys(prev).length ? {} : prev);
       return;
     }
 
@@ -234,18 +324,29 @@ export function useItemPresence(
         if (!snapshot.userId || snapshot.userId === userId) return;
         const isNewPeer = !knownRemoteIdsRef.current.has(snapshot.userId);
         if (isNewPeer) knownRemoteIdsRef.current.add(snapshot.userId);
-        setRemotePresence(prev => ({
-          ...prev,
-          [snapshot.userId]: {
-            userId: snapshot.userId,
-            name: snapshot.name,
-            color: snapshot.color,
-            items: snapshot.items || [],
-            windows: snapshot.windows || [],
-            activeLayerId: snapshot.activeLayerId || null,
-            lastSeen: snapshot.lastSeen || Date.now(),
-          },
-        }));
+        // Liveness always lands, in a ref: every peer beats at 2s and the beat
+        // is what keeps them out of pruneStaleUsers, but the timestamp itself is
+        // never drawn.
+        remoteLastSeenRef.current.set(snapshot.userId, snapshot.lastSeen || Date.now());
+        setRemotePresence(prev => {
+          // Almost every frame IS just that beat — same name, same colour, same
+          // layer, same items, same windows. This hook is mounted at the App
+          // root, so committing it anyway cost a full-tree re-render per peer
+          // per 2s in a workspace where nobody was doing anything.
+          if (samePresenceSnapshot(prev[snapshot.userId], snapshot)) return prev;
+          return {
+            ...prev,
+            [snapshot.userId]: {
+              userId: snapshot.userId,
+              name: snapshot.name,
+              color: snapshot.color,
+              items: snapshot.items || [],
+              windows: snapshot.windows || [],
+              activeLayerId: snapshot.activeLayerId || null,
+              lastSeen: snapshot.lastSeen || Date.now(),
+            },
+          };
+        });
         if (isNewPeer) sendSnapshot();
       })
       .on('broadcast', { event: 'typing' }, ({ payload }: BroadcastPayload<TypingFrame>) => {
@@ -257,7 +358,11 @@ export function useItemPresence(
         const leavingId = payload.userId;
         if (!leavingId) return;
         knownRemoteIdsRef.current.delete(leavingId);
+        remoteLastSeenRef.current.delete(leavingId);
         setRemotePresence(prev => {
+          // A leave for somebody we never held (a peer known only through a
+          // typing frame, a duplicate unload beat) must not rebuild the roster.
+          if (!(leavingId in prev)) return prev;
           const next = { ...prev };
           delete next[leavingId];
           return next;
@@ -309,9 +414,9 @@ export function useItemPresence(
 
   // A typing frame is itself proof of a peer, and it may arrive before that
   // peer's first snapshot does. Counting it here keeps the heartbeat — and so
-  // the typing prune that rides it — at 2s rather than 10s, which is what
-  // bounds an indicator's life to its TTL plus one tick instead of plus ten
-  // seconds.
+  // the typing prune that rides it — at 2s rather than on the slow solo
+  // keepalive, which is what bounds an indicator's life to its TTL plus one
+  // tick instead of plus the whole keepalive period.
   const hasRemotePeers = Object.keys(remotePresence).length > 0 || Object.keys(typingState).length > 0;
 
   useEffect(() => {
@@ -319,13 +424,19 @@ export function useItemPresence(
 
     // Typing expiry rides the existing heartbeat rather than adding a timer:
     // it ticks every 2s while there are peers, which bounds an indicator's
-    // overshoot past its 6s TTL to one tick. With no peers it drops to 10s,
+    // overshoot past its 6s TTL to one tick. With no peers it drops right back,
     // and with no peers nobody can be typing at you anyway.
+    //
+    // Alone in a workspace — the common case — that beat has no listener at all:
+    // it serialises every shared window into a ~2 KB frame and pushes it at a
+    // socket nobody is on the other end of. Discovery does not depend on it
+    // either (a joiner broadcasts on SUBSCRIBED and every peer answers that with
+    // a snapshot of its own), so the solo cadence is a slow keepalive.
     heartbeatRef.current = window.setInterval(() => {
       sendSnapshot();
       pruneStaleUsers();
       pruneTyping();
-    }, hasRemotePeers ? 2000 : 10000);
+    }, hasRemotePeers ? 2000 : 30000);
 
     return () => {
       if (heartbeatRef.current) window.clearInterval(heartbeatRef.current);

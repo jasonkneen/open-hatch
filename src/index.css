@@ -45,6 +45,31 @@
  --agensis-panel-alpha: 88%;
  --agensis-sidebar-alpha: 88%;
  --agensis-glass-blur: 16px;
+ /* EVERY glass surface reads its filter from one of these three tokens and
+    never from --agensis-glass-blur directly. The reason is the zero case: a
+    `backdrop-filter: blur(0px) saturate(140%)` is NOT free — the property is
+    still present, so the compositor still promotes the element to its own
+    render surface, still copies the backdrop into a texture and still runs the
+    saturate colour matrix over it every frame the region behind it changes.
+    Dragging a window over a 0px-blurred sidebar costs exactly what dragging it
+    over a 16px-blurred one costs. So the Settings -> glass blur slider has to
+    be able to emit NO filter at all, which a single px token cannot express.
+    applyUiAppearanceSettings() (src/lib/settings.ts) rewrites all three as
+    INLINE styles on :root and writes `none` into every one of them at 0 —
+    that is the real escape hatch on a machine whose GPU cannot keep up.
+      --agensis-glass-filter        panels, windows, dialogs, popovers
+      --agensis-glass-filter-soft   the 0.75x rung. NO CURRENT CONSUMERS: every
+                                    in-panel row and card that used to frost at
+                                    this radius now takes a plain fill instead
+                                    (see "LIST ROWS GET A FILL, NEVER A FILTER"
+                                    below). Kept so the next in-panel glass
+                                    surface reaches for the ladder rather than
+                                    hardcoding a px value again.
+      --agensis-glass-filter-subtle the fixed 3px scrims that are not on the
+                                    panel-alpha ladder at all */
+ --agensis-glass-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ --agensis-glass-filter-soft: blur(calc(var(--agensis-glass-blur, 16px) * 0.75)) saturate(140%);
+ --agensis-glass-filter-subtle: blur(3px);
 
  --radius-sm: 6px;
  --radius-md: 10px;
@@ -556,8 +581,18 @@
  box-shadow:
   inset 0 1px 0 var(--tw-control-inset),
   var(--shadow-sm);
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+}
+
+/* Only the three that are painted on the canvas itself get the filter. An
+   input-group and a card are always inside a panel that is already frosted, and
+   every one of them is a separate compositor render surface — a form with eight
+   input groups was eight backdrop snapshots per frame for a blur nobody can see
+   through --tw-control-fill. */
+:root[data-ui-theme="paper"] [data-slot="dialog-content"],
+:root[data-ui-theme="paper"] [data-slot="alert-dialog-content"],
+:root[data-ui-theme="paper"] [data-slot="select-content"] {
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
 }
 
 :root[data-ui-theme="paper"] [data-slot="button"],
@@ -1170,8 +1205,8 @@
   linear-gradient(180deg, color-mix(in srgb, var(--foreground) 5%, transparent), transparent 32%),
   color-mix(in srgb, var(--card) var(--agensis-sidebar-alpha, 88%), transparent) !important;
  box-shadow: none;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
  contain: layout paint;
 }
 
@@ -1345,15 +1380,21 @@
  pointer-events: none;
  white-space: nowrap;
  box-shadow: var(--shadow-sm);
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
  transition: opacity 120ms ease, transform 120ms ease;
 }
 
+/* The frosting is attached to the hover/focus state, not to the resting rule.
+   A label is `opacity: 0` for all but a few hundred ms of its life, but a
+   backdrop-filter on an invisible element is still a compositor render surface
+   that gets re-blurred whenever the canvas behind the rail changes — and the
+   collapsed rail holds one label per button, permanently mounted. The label is
+   only ever seen in this state, so this is where the filter belongs. */
 .sidebar-rail-button:hover .sidebar-rail-label,
 .sidebar-rail-button:focus-visible .sidebar-rail-label {
  transform: translate(0, -50%) scale(1);
  opacity: 1;
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
 }
 
 :root[data-ui-theme="neo"] .sidebar-rail-label {
@@ -2135,14 +2176,18 @@
  min-height: 36px;
 }
 
+/* No backdrop-filter here. .channel-shell always renders inside
+   [data-window-surface] (FloatingWindowShell), which already frosts the
+   wallpaper, and the shell paints an ~88%-opaque --channel-surface on top of
+   that — a second blur pass over a fill that opaque returns the same pixels for
+   the price of another full-window compositor surface. See the "ONE
+   backdrop-filter per glass surface" block further down. */
 .channel-shell {
  --channel-surface: var(--card);
  --channel-header: var(--card);
  --channel-composer: var(--card);
  --channel-side: var(--card);
  background: var(--channel-surface) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
 }
 
 .channel-header {
@@ -2378,8 +2423,8 @@
  background: linear-gradient(to right,
    transparent,
    var(--channel-surface, var(--card)) 28px);
- backdrop-filter: blur(3px);
- -webkit-backdrop-filter: blur(3px);
+ backdrop-filter: var(--agensis-glass-filter-subtle);
+ -webkit-backdrop-filter: var(--agensis-glass-filter-subtle);
 }
 
 .chat-message-row[data-agent-message="true"] .chat-message-avatar,
@@ -2453,8 +2498,20 @@
 
 [data-window-surface] {
  background: color-mix(in srgb, var(--card) var(--agensis-panel-alpha, 88%), transparent) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
+}
+
+/* The titlebar carries Tailwind's `backdrop-blur-xl` from FloatingWindowShell,
+   which is a THIRD blur on top of the surface it sits on. It is `bg-transparent`,
+   so its backdrop is the ~88%-opaque fill above — blurring that again returns the
+   same pixels, but it costs a full-width render surface per window that gets
+   re-blurred on every pointermove of a drag (the shell rewrites translate3d per
+   event). Killed here rather than in the component so the shell keeps its single
+   className for every window kind. */
+[data-window-titlebar] {
+ backdrop-filter: none !important;
+ -webkit-backdrop-filter: none !important;
 }
 
 /* Depth: floating windows are lifted off the canvas with a layered ambient +
@@ -2498,8 +2555,8 @@
    search/command dialog, presence popover, mention pickers, composer. */
 .agensis-glass-panel {
  background: color-mix(in srgb, var(--popover) var(--agensis-panel-alpha, 88%), transparent) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%) !important;
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%) !important;
+ backdrop-filter: var(--agensis-glass-filter) !important;
+ -webkit-backdrop-filter: var(--agensis-glass-filter) !important;
 }
 
 :root[data-ui-theme="paper"],
@@ -2509,8 +2566,13 @@
  --theme-glass-muted: color-mix(in srgb, var(--muted) calc(var(--agensis-panel-alpha, 88%) - 18%), transparent);
 }
 
-:root[data-ui-theme="paper"] [data-window-surface],
-:root[data-ui-theme="neo"] [data-window-surface],
+/* The glass FILL for the two heavy families. Kept on all of them — the tint is
+   the look. The blur that used to ride along with it is not: everything below
+   [data-window-surface] in this list nests inside it, so the filter here was
+   the same five-deep stack the "ONE backdrop-filter per glass surface" block
+   further down explains, only paid twice over because these rules and that one
+   both fired. --theme-glass-surface is an ~88% fill; stacked three deep down the
+   scroller there is no backdrop left for the inner passes to blur. */
 :root[data-ui-theme="paper"] .channel-shell,
 :root[data-ui-theme="neo"] .channel-shell,
 :root[data-ui-theme="paper"] .channel-message-surface,
@@ -2520,16 +2582,32 @@
 :root[data-ui-theme="paper"] .channel-message-surface [data-slot="message-scroller-content"],
 :root[data-ui-theme="neo"] .channel-message-surface [data-slot="message-scroller-content"] {
  background: var(--theme-glass-surface) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
 }
 
+/* The window surface IS the glass edge against the wallpaper, so it keeps its
+   blur. It is the only element in the old list that was not nested in another
+   blurred one. */
+:root[data-ui-theme="paper"] [data-window-surface],
+:root[data-ui-theme="neo"] [data-window-surface] {
+ background: var(--theme-glass-surface) !important;
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
+}
+
+/* Raised chrome that lives INSIDE an already-frosted window: fill only. */
 :root[data-ui-theme="paper"] .channel-header,
 :root[data-ui-theme="neo"] .channel-header,
 :root[data-ui-theme="paper"] .channel-composer,
 :root[data-ui-theme="neo"] .channel-composer,
 :root[data-ui-theme="paper"] .channel-side-panel,
 :root[data-ui-theme="neo"] .channel-side-panel,
+:root[data-ui-theme="paper"] [data-slot="card"],
+:root[data-ui-theme="neo"] [data-slot="card"] {
+ background: var(--theme-glass-raised) !important;
+}
+
+/* Top-level portals: these are siblings of the window layer, painted straight
+   onto the canvas, so their blur is the real one and stays. */
 :root[data-ui-theme="paper"] [data-slot="dialog-content"],
 :root[data-ui-theme="neo"] [data-slot="dialog-content"],
 :root[data-ui-theme="paper"] [data-slot="popover-content"],
@@ -2537,14 +2615,27 @@
 :root[data-ui-theme="paper"] [data-slot="dropdown-menu-content"],
 :root[data-ui-theme="neo"] [data-slot="dropdown-menu-content"],
 :root[data-ui-theme="paper"] [data-slot="command"],
-:root[data-ui-theme="neo"] [data-slot="command"],
-:root[data-ui-theme="paper"] [data-slot="card"],
-:root[data-ui-theme="neo"] [data-slot="card"] {
+:root[data-ui-theme="neo"] [data-slot="command"] {
  background: var(--theme-glass-raised) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
 }
 
+/* LIST ROWS GET A FILL, NEVER A FILTER.
+   These four selectors are per-record: one activity event, one task, one item,
+   one card-tinted div. A list of 200 rows used to mean 200 independent backdrop
+   snapshots + blur + composite passes, each of them re-run on every frame of a
+   scroll, and all of them inside a window that is already frosted — a second
+   blur pass over a surface that has been blurred once and then covered by an
+   ~70% fill returns visually the same pixels. The fill is what you actually see,
+   so the fill is all that is left.
+
+   [class*="bg-card"] is also a slow selector: a substring match on the class
+   attribute cannot be bucketed by Chromium's rule hash, so it is scanned against
+   every candidate element on every style invalidation (and a streaming message
+   invalidates constantly). It is kept only because ~137 call sites in src/**.tsx
+   depend on the tint; the fix is a real .glass-row class on those sites, at
+   which point this selector should go. */
 :root[data-ui-theme="paper"] .activity-row,
 :root[data-ui-theme="neo"] .activity-row,
 :root[data-ui-theme="paper"] .task-row,
@@ -2554,8 +2645,6 @@
 :root[data-ui-theme="paper"] [class*="bg-card"],
 :root[data-ui-theme="neo"] [class*="bg-card"] {
  background-color: var(--theme-glass-muted) !important;
- backdrop-filter: blur(calc(var(--agensis-glass-blur, 16px) * 0.75)) saturate(140%);
- -webkit-backdrop-filter: blur(calc(var(--agensis-glass-blur, 16px) * 0.75)) saturate(140%);
 }
 
 [data-canvas-item-id][data-transforming="true"] {
@@ -2752,6 +2841,13 @@
  display: grid;
  place-items: center;
  overflow: hidden;
+ /* Paint containment, not decoration. Every atlas step is a REPAINT (the
+    keyframes below move background-position, which is a paint property), and
+    without containment each of those repaints hands Chromium an invalidation
+    rect that has to be walked back up through whatever chrome the avatar
+    happens to sit in. `contain: paint` says the damage stops at this box, which
+    is already true visually — the shell is overflow:hidden. */
+ contain: paint;
 }
 
 .animated-pet-avatar {
@@ -2764,6 +2860,33 @@
  background-position: 0% var(--pet-row-y);
  animation: pet-atlas-idle 1.55s step-end infinite;
  image-rendering: auto;
+}
+
+/* THE TRANSCRIPT IS THE ONE PLACE THIS DOES NOT SCALE.
+ *
+ * A pet avatar is a spritesheet stepped by keyframes, so it is a permanent
+ * repaint source — cheap per element (step-end, ~4-8 repaints/sec, not 60) but
+ * the element count is unbounded: MessageAvatar renders one AgentAvatar per
+ * agent message, so a long conversation holds a hundred of them and pays a
+ * hundred repaint invalidations a second for sprites the reader is not looking
+ * at. Everywhere else the count is bounded by design — the sidebar status feed,
+ * the agents grid, presence, the huddle strip are all short lists of avatars
+ * that are the subject of the view, and those keep animating exactly as before.
+ *
+ * In a message row the avatar is an identity marker, not the content, so it
+ * rests on its idle frame and comes alive when the pointer is on the row (the
+ * row already has a hover treatment, so this reads as part of it). Pausing
+ * rather than removing the animation keeps the sprite on a real atlas frame; the
+ * play-state flip is free, no style recalc beyond the hovered row.
+ */
+.chat-message-row .animated-pet-avatar,
+.chat-thread-message .animated-pet-avatar {
+ animation-play-state: paused;
+}
+
+.chat-message-row:hover .animated-pet-avatar,
+.chat-thread-message:hover .animated-pet-avatar {
+ animation-play-state: running;
 }
 
 .animated-pet-avatar[data-pet-state="idle"] {
@@ -3466,8 +3589,8 @@ body {
  padding: 0.25rem 0.35rem 0.25rem 0.55rem;
  opacity: 1;
  pointer-events: auto;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
 }
 
 [data-canvas-applet-title] {
@@ -3933,36 +4056,49 @@ body {
  animation: spin 0.8s linear infinite;
 }
 
-/* Shimmer sweep for "Thinking…" placeholder text — an animated highlight band
-   travels across the muted text so an agent feels alive while it works. */
+/* Liveness cue for "Thinking…" placeholder text — the label breathes between
+   muted and full foreground so an agent feels alive while it works.
+ *
+ * THIS USED TO BE A GRADIENT SWEEP AND IT WAS THE MOST EXPENSIVE ANIMATION IN
+ * THE APP. The old rule painted a 200%-wide linear-gradient through
+ * `background-clip: text` with `-webkit-text-fill-color: transparent`, and
+ * animated `background-position` linear/infinite. `background-position` is a
+ * paint property, not a compositable one: Chromium produced a new value every
+ * frame and had to REPAINT the element, and because the paint went through a
+ * text mask, every one of those 60 repaints per second re-rasterised the glyphs
+ * and re-sampled the gradient through them. That ran for the whole duration of
+ * every agent turn, once per streaming message, in the middle of the transcript.
+ *
+ * `opacity` is compositable, so this version is animated entirely on the
+ * compositor thread: the element is rasterised ONCE and the GPU varies its alpha
+ * per frame. Zero repaints, zero style/layout work, and the glyphs render as
+ * ordinary text rather than as a mask. The Spinner beside it (transform-based,
+ * already composited) still supplies the directional motion the sweep used to.
+ *
+ * ease-in-out with a hold at each end keeps the same slow ~1.8s pulse rhythm the
+ * sweep had, so the indicator reads the same at a glance. */
 @keyframes text-shimmer {
- 0% {
-  background-position: 200% 0;
+ 0%,
+ 100% {
+  opacity: 0.45;
  }
 
- 100% {
-  background-position: -200% 0;
+ 50% {
+  opacity: 1;
  }
 }
 
 .text-shimmer {
- background: linear-gradient(100deg,
-   var(--muted-foreground) 0%,
-   var(--muted-foreground) 35%,
-   var(--foreground) 50%,
-   var(--muted-foreground) 65%,
-   var(--muted-foreground) 100%);
- background-size: 200% 100%;
- -webkit-background-clip: text;
- background-clip: text;
- -webkit-text-fill-color: transparent;
- color: transparent;
- animation: text-shimmer 1.8s linear infinite;
+ color: var(--foreground);
+ animation: text-shimmer 1.8s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
  .text-shimmer {
+  /* No animation means no pulse to average out, so settle on the muted end —
+     the same weight the sweep's resting colour had. */
   animation: none;
+  color: var(--muted-foreground);
  }
 }
 
@@ -4377,20 +4513,23 @@ body {
 .settings-dialog {
  background: color-mix(in srgb, var(--card) 58%, transparent) !important;
  border-color: color-mix(in srgb, var(--border) 58%, transparent) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ backdrop-filter: var(--agensis-glass-filter);
+ -webkit-backdrop-filter: var(--agensis-glass-filter);
  box-shadow:
   0 32px 90px -36px rgba(0, 0, 0, 0.38),
   0 10px 28px -18px rgba(0, 0, 0, 0.28),
   inset 0 1px 0 color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
+/* Fill only. These three are children of .settings-dialog, which is the dialog
+   surface and carries the blur; a nested backdrop-filter here re-read its
+   already-blurred output for a difference of a few px of radius and cost the
+   dialog three more compositor render surfaces that re-run whenever anything
+   behind the dialog moves. */
 .settings-dialog-header,
 .settings-dialog-nav,
 .settings-dialog-content {
  background: color-mix(in srgb, var(--card) 32%, transparent) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
 }
 
 .settings-dialog-body,
@@ -4435,8 +4574,9 @@ body {
  padding: 1rem 1.1rem;
  color: var(--foreground);
  text-align: left;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%);
+ /* No backdrop-filter: a choice card is one of a grid of them inside the
+    already-frosted .settings-dialog, so each one was its own render surface for
+    a blur that only differed from its parent's by a few px of radius. */
  transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease;
 }
 
@@ -4503,10 +4643,10 @@ body {
  padding: 0.85rem 0;
 }
 
+/* One settings row = one element, and a settings pane is a long list of them.
+   Fill only, for the same reason as .settings-choice-card above. */
 .settings-dialog [data-slot="item"] {
  background: color-mix(in srgb, var(--card) 42%, transparent) !important;
- backdrop-filter: blur(calc(var(--agensis-glass-blur, 16px) * 0.75)) saturate(140%);
- -webkit-backdrop-filter: blur(calc(var(--agensis-glass-blur, 16px) * 0.75)) saturate(140%);
 }
 
 [data-sidebar-panel],
@@ -4578,8 +4718,8 @@ select {
 .home-workspace-composer {
  background: color-mix(in srgb, var(--card) var(--agensis-panel-alpha, 88%), transparent) !important;
  border-color: color-mix(in srgb, var(--border-strong) 82%, transparent) !important;
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%) !important;
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%) !important;
+ backdrop-filter: var(--agensis-glass-filter) !important;
+ -webkit-backdrop-filter: var(--agensis-glass-filter) !important;
 }
 
 .home-suggestion-pill {
@@ -5081,25 +5221,36 @@ select {
  --channel-side: color-mix(in srgb, var(--card) var(--agensis-panel-alpha, 88%), transparent) !important;
 }
 
-.channel-shell,
-.channel-message-surface,
-.channel-message-surface [data-slot="message-scroller-viewport"],
-.channel-message-surface [data-slot="message-scroller-content"],
-.channel-header,
-.channel-composer,
-.channel-side-panel,
+/* ONE backdrop-filter per glass surface — never a stack of them.
+   This list used to also carry .channel-shell, .channel-message-surface, the
+   message-scroller viewport AND its content box, .channel-header,
+   .channel-composer, .channel-side-panel, the four .settings-dialog-* children
+   and [data-slot="card"]. Every one of those is a DESCENDANT of a surface that
+   is still in the list, so one open chat window stood up FIVE stacked
+   backdrop-filters and the settings dialog another five. That is not five times
+   the frosting, it is five times the cost: each backdrop-filter forces its own
+   compositor render surface, and a nested one has to re-read the already-blurred
+   output of the one above it — so every dirty rect inside a transcript, i.e.
+   every streamed token, re-ran the whole chain in the GPU process.
+
+   The innermost was the worst of them. [data-slot="message-scroller-content"] is
+   sized h-max/min-h-full (src/components/ui/message-scroller.tsx), so the blurred
+   region was the ENTIRE transcript — thousands of px tall, not viewport-clipped —
+   and it was re-composited on every scroll frame.
+
+   Deleting them is invisible, and the rule two below this one is why: the message
+   surface, the viewport and the content box are all painted with
+   var(--channel-surface) at --agensis-panel-alpha (88% by default). Three 88%
+   fills stacked on an 88% .channel-shell on an 88% [data-window-surface] is
+   ~99.9% opaque — there was no backdrop left to blur. The one glass edge that
+   actually meets the wallpaper, [data-window-surface], is untouched. */
 .settings-dialog,
-.settings-dialog-header,
-.settings-dialog-nav,
-.settings-dialog-content,
-.settings-dialog-scroll,
 [data-slot="dialog-content"],
 [data-slot="popover-content"],
 [data-slot="dropdown-menu-content"],
-[data-slot="card"],
 [data-window-surface] {
- backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%) !important;
- -webkit-backdrop-filter: blur(var(--agensis-glass-blur, 16px)) saturate(140%) !important;
+ backdrop-filter: var(--agensis-glass-filter) !important;
+ -webkit-backdrop-filter: var(--agensis-glass-filter) !important;
 }
 
 .settings-dialog,
@@ -5667,19 +5818,32 @@ select {
  *
  * The feed is newest-first, so an incoming event is PREPENDED and every row
  * below shifts by one. Without an animation that shift is a jump-cut — the
- * reader sees a different list, not a list that moved. The row animates its own
- * height open from 0 (the grid-rows 0fr -> 1fr technique, so no row height is
- * hardcoded and a wrapped row still works) while fading and sliding in, which
- * is what makes the downward push legible.
+ * reader sees a different list, not a list that moved. The row fades and slides
+ * into place, which is what makes the downward push legible.
+ *
+ * IT NO LONGER ANIMATES ITS HEIGHT OPEN. The original used the grid-rows
+ * 0fr -> 1fr technique, and grid-template-rows is a LAYOUT property: Chromium
+ * re-ran grid track sizing and a full layout of the row's subtree on all ~16
+ * frames of the 260ms, and because the row is prepended, that relaid out every
+ * row below it too — 16 whole-list layout passes per incoming event, on a list
+ * that grows, arriving in bursts that overlap each other. Any real height reveal
+ * is layout by definition, so there is no cheap version of it; what is left is
+ * the fade and the slide, which are both compositable and cost nothing per
+ * frame. The row now takes its final height on the frame it mounts and the list
+ * below settles in one step instead of over 260ms.
+ *
+ * (.activity-row's `display: grid` / `grid-template-rows: 1fr` and the
+ * `min-height: 0; overflow: hidden` on its child below are what the 0fr
+ * technique needed. They are kept because they are also the row's plain static
+ * layout and removing them would change how a wrapped row clips, but nothing
+ * animates them any more.)
  */
 @keyframes activity-row-in {
  from {
-  grid-template-rows: 0fr;
   opacity: 0;
   transform: translateY(-4px);
  }
  to {
-  grid-template-rows: 1fr;
   opacity: 1;
   transform: translateY(0);
  }

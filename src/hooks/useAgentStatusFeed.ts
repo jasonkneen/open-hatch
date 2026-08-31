@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { WorkspacePresenceUser } from './useWorkspacePresence';
 import type { WorkspaceAgent } from '../types';
 import type { BroadcastPayload } from '../types/realtime';
@@ -242,8 +242,17 @@ export function useAgentStatusFeed(
      // last activity verb. If there's no entry yet (e.g. a very fast job),
      // there's nothing to refine — presence's "wrapped up" bookend covers it.
      if (idx === -1) return q;
+     // Same bail-out the placeholder branch above has, and for the same
+     // reason: this broadcast arrives once per streamed flush of the reply,
+     // but `completionLine` only reads the FIRST line (capped at 80 chars),
+     // so it stops changing after the first chunk or two while the flushes
+     // keep coming. Re-stamping `ts` on an identical line would re-render the
+     // App root — this hook feeds the sidebar from App.tsx — once per chunk
+     // for a bubble whose pixels never move.
+     const doneText = completionLine(content);
+     if (q[idx].text === doneText && q[idx].kind === 'done') return q;
      const next = [...q];
-     next[idx] = { ...next[idx], text: completionLine(content), kind: 'done', ts: Date.now() };
+     next[idx] = { ...next[idx], text: doneText, kind: 'done', ts: Date.now() };
      return next;
     });
    })
@@ -278,26 +287,41 @@ export function useAgentStatusFeed(
   if (queue.length === 0) setExpanded(false);
  }, [queue.length]);
 
- return {
+ // The whole returned object is handed to <Sidebar>, which is React.memo'd.
+ // Rebuilding it (and six fresh closures) on every App render made that memo
+ // unreachable, so any unrelated App state change re-rendered the entire
+ // sidebar. Nothing here depends on props, so the callbacks are stable for the
+ // life of the hook and the object only changes when the feed actually does.
+ const toggleMuted = useCallback(() => {
+  setMuted(m => {
+   const nextVal = !m;
+   try {
+    localStorage.setItem(MUTE_KEY, nextVal ? '1' : '0');
+   } catch {
+    /* private mode / storage disabled — stay in-memory for this session */
+   }
+   return nextVal;
+  });
+ }, []);
+ const toggleExpanded = useCallback(() => setExpanded(e => !e), []);
+ const advance = useCallback(() => setQueue(q => (q.length ? q.slice(1) : q)), []);
+ const dismissOne = useCallback(
+  (id: string) => setQueue(q => (q.some(item => item.id === id) ? q.filter(item => item.id !== id) : q)),
+  [],
+ );
+ const dismissAll = useCallback(() => setQueue(q => (q.length ? [] : q)), []);
+
+ return useMemo(() => ({
   current: queue[0] ?? null,
   queue,
   pending: Math.max(0, queue.length - 1),
   expanded,
   muted,
-  toggleMuted: () =>
-   setMuted(m => {
-    const nextVal = !m;
-    try {
-     localStorage.setItem(MUTE_KEY, nextVal ? '1' : '0');
-    } catch {
-     /* private mode / storage disabled — stay in-memory for this session */
-    }
-    return nextVal;
-   }),
-  toggleExpanded: () => setExpanded(e => !e),
-  next: () => setQueue(q => q.slice(1)),
-  dismiss: () => setQueue(q => q.slice(1)),
-  dismissOne: (id: string) => setQueue(q => q.filter(item => item.id !== id)),
-  dismissAll: () => setQueue([]),
- };
+  toggleMuted,
+  toggleExpanded,
+  next: advance,
+  dismiss: advance,
+  dismissOne,
+  dismissAll,
+ }), [queue, expanded, muted, toggleMuted, toggleExpanded, advance, dismissOne, dismissAll]);
 }

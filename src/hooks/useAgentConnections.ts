@@ -10,9 +10,46 @@ import type { AgentConnection } from '../types';
 // lifecycle event that flips the DB row never reaches us. 3x the heartbeat gives
 // margin for a single missed beat / network jitter.
 const STALE_AFTER_MS = 45_000;
-// Refetch cadence so a frozen last_seen_at is re-evaluated even when realtime
-// UPDATEs aren't arriving (the failure mode that makes lights "stay green").
-const POLL_INTERVAL_MS = 15_000;
+// Safety-net refetch cadence. Staleness itself no longer waits for this poll —
+// the effect below schedules a single timer for the exact instant the next
+// heartbeat crosses STALE_AFTER_MS — so all this has to catch is the case where
+// realtime is not delivering at all (a socket that died quietly, a row inserted
+// while we were disconnected). That is rare, an idle workspace is the norm, and
+// every poll used to cost four App-root re-renders, so it runs a minute apart,
+// only while the window is visible, and commits nothing when the rows come back
+// unchanged.
+const POLL_INTERVAL_MS = 60_000;
+
+// Rows are only re-committed when something we derive from them actually moved.
+// A poll response is byte-identical to what realtime already delivered nearly
+// every time, and replacing the array anyway hands every consumer (sidebar dot,
+// presence list, participant chips, useWorkspacePresence's memo) a new identity
+// and defeats their memoisation. `updated_at` is bumped by every server-side
+// write to the row, so it covers the columns not compared field-by-field here
+// (metadata, capabilities).
+function sameConnectionRow(before: AgentConnection, after: AgentConnection): boolean {
+  return before === after || (
+    before.id === after.id
+    && before.status === after.status
+    && before.last_seen_at === after.last_seen_at
+    && before.updated_at === after.updated_at
+    && before.agent_id === after.agent_id
+    && before.name === after.name
+    && before.handle === after.handle
+    && before.host === after.host
+    && before.cwd === after.cwd
+    && before.connected_at === after.connected_at
+  );
+}
+
+function sameConnectionRows(previous: AgentConnection[], next: AgentConnection[]): boolean {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
+  for (let i = 0; i < previous.length; i += 1) {
+    if (!sameConnectionRow(previous[i], next[i])) return false;
+  }
+  return true;
+}
 
 function isConnectionStale(connection: AgentConnection, nowMs: number): boolean {
   const seen = connection.last_seen_at ? new Date(connection.last_seen_at).getTime() : NaN;
@@ -58,21 +95,27 @@ export function useAgentConnections(workspaceId: string | null, seed?: AgentConn
   useEffect(() => {
     if (!seed) return;
     if (fetchedForWorkspaceRef.current === workspaceKey) return;
-    setConnections(seed.filter(connection => connection.workspace_id === workspaceKey));
+    const seeded = seed.filter(connection => connection.workspace_id === workspaceKey);
+    setConnections(prev => sameConnectionRows(prev, seeded) ? prev : seeded);
   }, [seed, setConnections, workspaceKey]);
 
-  const fetchConnections = useCallback(async () => {
+  // `quiet` is what the background poll passes: the spinner belongs to the cold
+  // fetch and to the explicit "refresh" in settings, where somebody is waiting
+  // on it. On a poll the await splits the batch, so the true/false pair alone
+  // was two whole App renders every cycle for a fetch nobody asked for.
+  const fetchConnections = useCallback(async (options?: { quiet?: boolean }) => {
+    const quiet = options?.quiet === true;
     const request = workspaceRequestRef.current;
     const isCurrent = () => workspaceRequestRef.current === request;
     if (!workspaceKey) {
-      setConnections([]);
+      setConnections(prev => prev.length === 0 ? prev : []);
       setRealtimeWorkspaceId(null);
       setLoading(false);
       fetchedForWorkspaceRef.current = null;
       return;
     }
     setRealtimeWorkspaceId(prev => prev === workspaceKey ? prev : null);
-    setLoading(true);
+    if (!quiet) setLoading(true);
     try {
       const response = await fetch(apiUrl(`/backend/agents/connections?workspaceId=${encodeURIComponent(workspaceKey)}`), {
         headers: apiAuthHeaders(),
@@ -81,12 +124,13 @@ export function useAgentConnections(workspaceId: string | null, seed?: AgentConn
       if (!isCurrent()) return;
       if (response.ok && Array.isArray(payload?.data)) {
         fetchedForWorkspaceRef.current = workspaceKey;
-        setConnections(payload.data);
+        const rows = payload.data as AgentConnection[];
+        setConnections(prev => sameConnectionRows(prev, rows) ? prev : rows);
         setRealtimeWorkspaceId(workspaceKey);
         return;
       }
       fetchedForWorkspaceRef.current = workspaceKey;
-      setConnections([]);
+      setConnections(prev => prev.length === 0 ? prev : []);
       setRealtimeWorkspaceId(null);
     } catch {
       if (!isCurrent()) return;
@@ -94,7 +138,7 @@ export function useAgentConnections(workspaceId: string | null, seed?: AgentConn
       // fetched, so a later seed can still apply if we never got a 2xx.
       setRealtimeWorkspaceId(null);
     } finally {
-      if (isCurrent()) setLoading(false);
+      if (isCurrent() && !quiet) setLoading(false);
     }
   }, [setConnections, workspaceKey]);
 
@@ -102,22 +146,56 @@ export function useAgentConnections(workspaceId: string | null, seed?: AgentConn
     void fetchConnections();
   }, [fetchConnections]);
 
-  // Poll so a daemon that died without delivering an offline UPDATE still has its
-  // last_seen_at re-read; the staleness derivation below then flips it to offline.
+  // Poll so a row that realtime never told us about (an INSERT we missed while
+  // disconnected, a status that changed behind a dead socket) is still picked up.
+  // A hidden window shows nobody a wrong light, so it does not poll at all; the
+  // visibilitychange handler refetches once on the way back so the first glance
+  // after switching to the app is current rather than up to a minute old.
   useEffect(() => {
     if (!workspaceKey) return;
-    const id = window.setInterval(() => { void fetchConnections(); }, POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
+    const poll = () => {
+      if (document.visibilityState === 'hidden') return;
+      void fetchConnections({ quiet: true });
+    };
+    const id = window.setInterval(poll, POLL_INTERVAL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void fetchConnections({ quiet: true });
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [workspaceKey, fetchConnections]);
 
-  // A monotonically advancing tick drives re-derivation of staleness between
-  // fetches/events, so a light goes out on schedule even with no incoming data.
+  // Re-derivation of staleness between fetches/events, so a light goes out on
+  // schedule even with no incoming data. This used to be a blind interval, which
+  // meant a re-render of the App root every POLL_INTERVAL_MS forever to compute
+  // an answer that changes only at a known instant. Instead: aim ONE timer at
+  // the earliest moment a heartbeat can cross the cutoff. When nothing can go
+  // stale — every row already offline, or none carries a parseable heartbeat —
+  // no timer is installed at all, which is the idle-workspace case.
   const [staleTick, setStaleTick] = useState(0);
   useEffect(() => {
-    if (!workspaceKey) return;
-    const id = window.setInterval(() => setStaleTick(tick => tick + 1), POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
-  }, [workspaceKey]);
+    const nowMs = Date.now();
+    let soonest = Infinity;
+    for (const connection of connections) {
+      if (connection.status === 'offline') continue;
+      const seen = connection.last_seen_at ? new Date(connection.last_seen_at).getTime() : NaN;
+      if (Number.isNaN(seen)) continue;
+      const goesStaleAt = seen + STALE_AFTER_MS;
+      if (goesStaleAt > nowMs && goesStaleAt < soonest) soonest = goesStaleAt;
+    }
+    if (soonest === Infinity) return;
+    // A row dated far in the future (a daemon with a skewed clock) would ask
+    // setTimeout for a delay past its 32-bit ceiling, which fires immediately
+    // and spins. Cap it: the poll re-reads such a row long before an hour is up.
+    // The small margin past the cutoff guarantees the re-derivation below sees
+    // the row as stale, so this effect cannot re-arm for the same instant.
+    const delay = Math.min(soonest - nowMs + 250, 3_600_000);
+    const id = window.setTimeout(() => setStaleTick(tick => tick + 1), delay);
+    return () => window.clearTimeout(id);
+  }, [connections, staleTick]);
 
   const deduper = useRealtimeDeduper();
   useTableSubscription<AgentConnection>(
@@ -141,11 +219,24 @@ export function useAgentConnections(workspaceId: string | null, seed?: AgentConn
       } else if (payload.eventType === 'UPDATE') {
         const row = payload.new;
         if (!row) return;
-        setConnections(prev => prev.map(connection => connection.id === row.id ? row : connection));
+        setConnections(prev => {
+          // `map` allocated a new array even when it changed nothing — for a row
+          // we do not hold (already deleted locally, or older than the 24h window
+          // the fetch selects) or for a re-delivery of one we already have. Both
+          // are no-ops that used to re-render the App root and every consumer.
+          const index = prev.findIndex(connection => connection.id === row.id);
+          if (index === -1) return prev;
+          if (sameConnectionRow(prev[index], row)) return prev;
+          const next = [...prev];
+          next[index] = row;
+          return next;
+        });
       } else if (payload.eventType === 'DELETE') {
         const row = payload.old;
         if (!row?.id) return;
-        setConnections(prev => prev.filter(connection => connection.id !== row.id));
+        setConnections(prev => prev.some(connection => connection.id === row.id)
+          ? prev.filter(connection => connection.id !== row.id)
+          : prev);
       }
     },
   );
@@ -153,9 +244,19 @@ export function useAgentConnections(workspaceId: string | null, seed?: AgentConn
   // Expose connections with heartbeat-derived status so every consumer (sidebar
   // status dot, presence list, chat participant chip) reflects real liveness.
   const effectiveConnections = useMemo(() => {
-    void staleTick; // recompute on each tick
+    void staleTick; // recompute when a heartbeat crosses the cutoff
     const nowMs = Date.now();
-    return connections.map(connection => withEffectiveStatus(connection, nowMs));
+    let flipped = false;
+    const derived = connections.map(connection => {
+      const next = withEffectiveStatus(connection, nowMs);
+      if (next !== connection) flipped = true;
+      return next;
+    });
+    // Hand back the SAME array when no row's derived status differs. A tick that
+    // flips nothing must cost nothing: this value is a dependency of
+    // useWorkspacePresence and is passed down to the sidebar and every chat
+    // window, so a gratuitous new identity re-renders all of them.
+    return flipped ? derived : connections;
   }, [connections, staleTick]);
 
   return { connections: effectiveConnections, loading, refetch: fetchConnections };

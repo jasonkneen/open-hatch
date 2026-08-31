@@ -49,6 +49,18 @@ export function useWorkspaceState<T>(
       const value = typeof action === 'function'
         ? (action as (previousValue: T) => T)(previous)
         : action;
+      // React bails out of the re-render when a setter returns the state it was
+      // handed; a freshly allocated wrapper is never Object.is-equal to the old
+      // one, so without this line that bailout was unreachable for every
+      // consumer. Realtime handlers lean on it constantly ("return prev" when a
+      // row we already hold arrives again, when a payload belongs to another
+      // workspace, when a poll finds nothing new) and these hooks are mounted at
+      // the App root, so each of those no-ops re-rendered the whole tree.
+      // The identity half of the check keeps the workspace fence exact: a
+      // wrapper still stamped with a PREVIOUS identity has to be replaced even
+      // when its value happens to be identical, or the read below would go on
+      // answering `emptyValue` forever.
+      if (current.identity === identity && Object.is(current.value, value)) return current;
       return { identity, value };
     });
   }, [emptyValue, identity]);
