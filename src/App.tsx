@@ -37,6 +37,7 @@ import { CanvasSelectionLayer } from './components/canvas/CanvasSelectionLayer';
 import CanvasTemplatePicker from './components/canvas/CanvasTemplatePicker';
 import { SettingsDialog, type SettingsTabId } from './components/settings/SettingsDialog';
 import { RegistrationApprovalPopup } from './components/agents/RegistrationApprovalPopup';
+import { WebMcpBridge } from './components/webmcp/WebMcpBridge';
 import { FeedbackButton } from './components/feedback/FeedbackButton';
 import { NotificationsBell } from './components/notifications/NotificationsBell';
 import { Separator } from './components/ui/separator';
@@ -2158,6 +2159,14 @@ function AppContent() {
     return sendMessage(content, model, memFacts, docs, snapshot, selectedAgent, threadParentId, targetSession, broadcastToChannel, attachments);
   }, [sendMessage, useWorkspaceCtx, buildWorkspaceContext, selectedAgent]);
 
+  // Posting path for the WebMCP bridge. Routed through wrappedSendMessage so a
+  // tool-posted message is indistinguishable from a composer-posted one — same
+  // workspace-context snapshot, same agent routing. 'auto' is the composer's own
+  // default (useChat.ts:462), which is what makes @mention wake-up work.
+  const handleWebMcpPostMessage = useCallback(async (text: string, session: ChatSession) => {
+    await wrappedSendMessage(text, 'auto', undefined, undefined, null, session);
+  }, [wrappedSendMessage]);
+
   const handleCreateCustomApplet = useCallback(async () => {
     const { session, failure } = await createSession('auto', { canvas_id: activeLayerId });
     if (!session) {
@@ -2942,6 +2951,17 @@ function AppContent() {
         contextLabel={viewedLayer.name || activeWorkspace?.name || ''}
       />
       <HuddleDock />
+      {/* Offers a small set of agensis actions to an in-browser AI agent over
+          WebMCP. Renders nothing, and no-ops entirely in browsers without
+          navigator/document.modelContext. */}
+      <WebMcpBridge
+        workspaceId={activeWorkspaceId || null}
+        sessions={sessions}
+        agents={agents}
+        activeSession={activeSession}
+        onOpenSession={handleSessionOpenById}
+        onPostMessage={handleWebMcpPostMessage}
+      />
       <AppUpdateManager onNotificationChange={setUpdateNotification} />
       {/* Renders nothing unless an owner broadcast for the 'dialog' surface is
           waiting; closing it is the server-side dismissal. */}
