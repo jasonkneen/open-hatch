@@ -9784,12 +9784,15 @@ const voicePublish = createVoicePublish({
 const { publishHuddleVoiceText } = voicePublish;
 
 // Turning long-running chat work into a task. Constructed BEFORE agentJobs
-// because agentJobs takes settleCapturedChatTask as a dep; it holds no state and
-// reaches nothing else in here, so a plain reference is safe where the other
-// cross-module deps have to be thunks.
+// because agentJobs takes settleCapturedChatTask as a dep. The factory keeps
+// only one process-local bit after its bounded legacy-title backfill completes;
+// database and model access are injected, so this early construction does not
+// reach an uninitialised module binding.
 const chatTaskCapture = createChatTaskCapture({
  getDb,
  notifyDbSubscribers: (...a) => realtime.notifyDbSubscribers(...a),
+ runAnthropicCompletion: (...a) => runAnthropicCompletion(...a),
+ onWarn: (message) => console.warn('[chat-task-capture]', message),
 });
 
 // Agent jobs hold no in-process state — a job's liveness is a database fact, so

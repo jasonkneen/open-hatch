@@ -37,7 +37,10 @@ const path = require('path');
 const {
   createChatTaskCapture,
   chatTaskTitle,
+  chatTaskRequestText,
+  parseGeneratedChatTaskTitle,
   stripLeadingMentions,
+  CHAT_TASK_TITLE_MODEL,
 } = require('../server/chat-task-capture.cjs');
 
 const WS = 'ws-1';
@@ -81,6 +84,7 @@ function seedRow(over = {}) {
     author_id: HUMAN_ID,
     deleted_at: null,
     thread_task_id: null,
+    context_content: '',
     ...over,
   };
 }
@@ -90,17 +94,31 @@ function seedRow(over = {}) {
  * every write. It never inspects the guard columns, so a guard that stopped
  * working would show up here as an extra insert.
  */
-function makeDb({ jobs = [], seed = seedRow(), insertReturns = undefined, updateReturns = [] } = {}) {
-  const calls = { selects: 0, inserts: [], updates: [] };
+function makeDb({
+  jobs = [],
+  seed = seedRow(),
+  insertReturns = undefined,
+  updateReturns = [],
+  weakTasks = [],
+  titleUpdateReturns = undefined,
+} = {}) {
+  const calls = { selects: 0, inserts: [], updates: [], titleUpdates: [] };
   const db = {
     unsafe: async (sql, params) => {
       const text = String(sql);
       if (text.includes('from agent_jobs')) { calls.selects += 1; return jobs; }
       if (text.includes('from messages')) return seed ? [seed] : [];
+      if (text.includes('from tasks') && text.includes("source_type = 'chat'")) return weakTasks;
       if (text.startsWith('insert into tasks') || text.includes('insert into tasks')) {
         calls.inserts.push(params);
         if (insertReturns !== undefined) return insertReturns;
-        return [{ id: 'task-new', workspace_id: WS, origin_job_id: params[6] }];
+        return [{ id: 'task-new', workspace_id: WS, title: params[3], source_type: 'chat', origin_job_id: params[6] }];
+      }
+      if (text.includes('update tasks') && text.includes('set title = $1')) {
+        calls.titleUpdates.push({ sql: text, params });
+        if (typeof titleUpdateReturns === 'function') return titleUpdateReturns({ sql: text, params, index: calls.titleUpdates.length - 1 });
+        if (titleUpdateReturns !== undefined) return titleUpdateReturns;
+        return [{ id: params[1], workspace_id: WS, title: params[0], source_type: 'chat' }];
       }
       if (text.includes('update tasks')) { calls.updates.push({ sql: text, params }); return updateReturns; }
       throw new Error(`unexpected sql: ${text.slice(0, 80)}`);
@@ -109,12 +127,13 @@ function makeDb({ jobs = [], seed = seedRow(), insertReturns = undefined, update
   return { db, calls };
 }
 
-function makeCapture(dbSetup = {}) {
+function makeCapture(dbSetup = {}, captureDeps = {}) {
   const { db, calls } = makeDb(dbSetup);
   const published = [];
   const capture = createChatTaskCapture({
     getDb: () => db,
     notifyDbSubscribers: (table, event, rows) => published.push({ table, event, rows }),
+    ...captureDeps,
   });
   return { capture, calls, published };
 }
@@ -222,6 +241,141 @@ test('the title is the request, with the addressing stripped', () => {
   assert.equal(chatTaskTitle('ask @hermes about the schema'), 'ask @hermes about the schema');
 });
 
+test('an uploaded-file block is context, not the task title', () => {
+  const content = [
+    '[Linked files]',
+    '- Screenshot.png (Uploaded file): Screenshot.png',
+    '',
+    '@codex make the task descriptions clearer',
+  ].join('\n');
+  assert.equal(chatTaskRequestText(content), 'make the task descriptions clearer');
+  assert.equal(chatTaskTitle(content), 'make the task descriptions clearer');
+});
+
+test('generated titles are strict, bounded, and fall back on malformed model output', () => {
+  assert.equal(
+    parseGeneratedChatTaskTitle('{"title":"Improve captured task titles"}', 'fallback'),
+    'Improve captured task titles',
+  );
+  assert.equal(parseGeneratedChatTaskTitle('not json', 'fallback'), 'fallback');
+  const long = parseGeneratedChatTaskTitle(`{"title":"${'x'.repeat(200)}"}`, 'fallback');
+  assert.ok(long.length <= 90);
+  assert.ok(long.endsWith('…'));
+});
+
+test('a captured task is refined by the cheap title model after the insert wins', async () => {
+  const modelCalls = [];
+  const { capture, calls, published } = makeCapture(
+    { jobs: [jobRow()] },
+    {
+      runAnthropicCompletion: async (args) => {
+        modelCalls.push(args);
+        return '{"title":"Migrate legacy billing tables"}';
+      },
+    },
+  );
+  const created = await capture.captureLongRunningChatTasks();
+
+  assert.equal(modelCalls.length, 1);
+  assert.equal(modelCalls[0].model, CHAT_TASK_TITLE_MODEL);
+  assert.equal(modelCalls[0].usageKind, 'chat_task_title');
+  assert.equal(modelCalls[0].workspaceId, WS);
+  assert.match(modelCalls[0].messages[0].content, /migrate the billing tables/);
+  assert.deepEqual(calls.titleUpdates[0].params, ['Migrate legacy billing tables', 'task-new', 'please migrate the billing tables and backfill the old rows']);
+  assert.equal(created[0].title, 'Migrate legacy billing tables');
+  assert.deepEqual(published.map(p => p.event), ['INSERT', 'UPDATE']);
+});
+
+test('every captured row exists before title refinement can delay later candidates', async () => {
+  const observations = [];
+  const jobs = [jobRow(), jobRow({ id: 'job-2' })];
+  const { capture, calls } = makeCapture(
+    { jobs },
+    {
+      runAnthropicCompletion: async () => {
+        observations.push(calls.inserts.length);
+        return '{"title":"Migrate legacy billing tables"}';
+      },
+    },
+  );
+  await capture.captureLongRunningChatTasks();
+
+  assert.deepEqual(observations, [2, 2]);
+});
+
+test('a title-model failure leaves the useful deterministic title in place', async () => {
+  const warnings = [];
+  const { capture, calls, published } = makeCapture(
+    { jobs: [jobRow()] },
+    {
+      runAnthropicCompletion: async () => { throw new Error('provider unavailable'); },
+      onWarn: (message) => warnings.push(message),
+    },
+  );
+  const created = await capture.captureLongRunningChatTasks();
+
+  assert.equal(created.length, 1);
+  assert.equal(created[0].title, 'please migrate the billing tables and backfill the old rows');
+  assert.equal(calls.titleUpdates.length, 0);
+  assert.deepEqual(published.map(p => p.event), ['INSERT']);
+  assert.match(warnings[0], /provider unavailable/);
+});
+
+test('existing linked-file tasks are claimed once, then backfilled through the title model', async () => {
+  const modelCalls = [];
+  const weakTask = {
+    id: 'task-old',
+    workspace_id: WS,
+    title: '[Linked files]',
+    description: '[Linked files]\n- image.png (Uploaded file): image.png\n\nFix squeezed avatars\n\nCaptured automatically from #work — Claude was already working on this when the task was created.',
+    source_type: 'chat',
+  };
+  const { capture, calls, published } = makeCapture(
+    { jobs: [], weakTasks: [weakTask] },
+    {
+      runAnthropicCompletion: async (args) => {
+        modelCalls.push(args);
+        return '{"title":"Prevent squeezed agent avatars"}';
+      },
+    },
+  );
+  await capture.captureLongRunningChatTasks();
+
+  assert.equal(modelCalls.length, 1);
+  assert.match(modelCalls[0].messages[0].content, /Fix squeezed avatars/);
+  assert.deepEqual(calls.titleUpdates.map(call => call.params), [
+    ['Fix squeezed avatars', 'task-old', '[Linked files]'],
+    ['Prevent squeezed agent avatars', 'task-old', 'Fix squeezed avatars'],
+  ]);
+  assert.equal(published.length, 1);
+  assert.equal(published[0].event, 'UPDATE');
+  assert.equal(published[0].rows[0].title, 'Prevent squeezed agent avatars');
+});
+
+test('a vague follow-up carries its parent request into the task description and title prompt', async () => {
+  const modelCalls = [];
+  const { capture, calls } = makeCapture(
+    {
+      jobs: [jobRow()],
+      seed: seedRow({
+        content: 'I want it fixed please',
+        context_content: '[Linked files]\n- image.png (Uploaded file): image.png\n\nThe avatars are squeezed together',
+      }),
+    },
+    {
+      runAnthropicCompletion: async (args) => {
+        modelCalls.push(args);
+        return '{"title":"Fix squeezed agent avatars"}';
+      },
+    },
+  );
+  await capture.captureLongRunningChatTasks();
+
+  assert.match(calls.inserts[0][4], /The avatars are squeezed together/);
+  assert.match(calls.inserts[0][4], /Follow-up: I want it fixed please/);
+  assert.match(modelCalls[0].messages[0].content, /The avatars are squeezed together/);
+});
+
 test('the title is one capped line, and the body is not lost with it', async () => {
   const long = `${'x'.repeat(300)}\nsecond line`;
   const title = chatTaskTitle(long);
@@ -264,6 +418,8 @@ test('the seed lookup reads source_task_id from the message AND its thread root'
   const source = fs.readFileSync(path.join(__dirname, '..', 'server', 'chat-task-capture.cjs'), 'utf8');
   const select = source.slice(source.indexOf('select m.id, m.content'), source.indexOf('limit 1'));
   assert.match(select, /coalesce\(m\.source_task_id, root\.source_task_id, parent\.source_task_id\)/);
+  assert.match(select, /parent\.deleted_at is null/);
+  assert.match(select, /root\.deleted_at is null/);
 });
 
 // --- 4. who counts as "someone posting a message" ---------------------------
