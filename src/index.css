@@ -4336,9 +4336,12 @@ body {
  transition: margin-inline-start 150ms ease, transform 150ms ease, box-shadow 150ms ease;
 }
 
+/* The stack still overlaps, but by no more than the initials can spare. At
+   -0.35rem the neighbour's 2px ring pushed the cut to 7.6px of a 24px circle,
+   which clipped the first letter and made "CH CO HE" read as one run-on blob. */
 .presence-avatar-group [data-slot="avatar"]+[data-slot="avatar"],
 .presence-avatar-group [data-slot="avatar"]+[data-slot="avatar-group-count"] {
- margin-inline-start: -0.35rem;
+ margin-inline-start: -0.2rem;
 }
 
 .presence-avatar-group [data-slot="avatar"]:nth-child(1) {

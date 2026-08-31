@@ -94,10 +94,50 @@ function presenceAvatar(person: WorkspacePresenceUser): string {
   return person.kind === 'agent' ? person.avatar || '' : '';
 }
 
-/** Shared media branch for the compact group and the full roster row. */
-function PresenceAvatarMedia({ person }: { person: WorkspacePresenceUser }) {
-  if (person.kind !== 'agent') return null;
-  return <AgentAvatar avatar={presenceAvatar(person)} name={person.name} initials={initials(person.name)} className="size-full" fallbackClassName="bg-transparent text-[11px] font-bold text-white" />;
+/**
+ * The one thing drawn inside a presence avatar: agent art, or coloured initials.
+ *
+ * These are alternatives, never layers, and that is the whole point of this
+ * function. The previous version rendered the agent's `AgentAvatar` *and* left
+ * the sibling `AvatarFallback` in place, on the assumption that a fallback only
+ * shows when there is nothing else. That is not what Radix does — `Avatar.Root`
+ * only reports a loaded image when an `Avatar.Image` child loads one, and
+ * `AgentAvatar` is a plain `<span>`/`<img>`, not `Avatar.Image`. So the status
+ * stayed `idle`, the fallback rendered too, and `Avatar.Root` (a flex row) was
+ * left holding two `size-full` children with the default `flex-shrink: 1`.
+ * Each collapsed to half the box: every agent avatar came out 12px wide by 24px
+ * tall, a `rounded-full` stadium with its initials spilling over its
+ * neighbours — the "squeezed avatars" in the sidebar presence pill.
+ *
+ * Humans were unaffected (this returned `null` for them), which is why only the
+ * agents in the pill looked crushed.
+ *
+ * The agent's colour moves to the avatar root so transparent art still sits on
+ * a coloured disc, and `rounded-full overflow-hidden` keeps a square image or
+ * pet sprite inside the circle.
+ */
+function PresenceAvatarContent({ person, textClass }: { person: WorkspacePresenceUser; textClass: string }) {
+  if (person.kind === 'agent') {
+    return (
+      <AgentAvatar
+        avatar={presenceAvatar(person)}
+        name={person.name}
+        initials={initials(person.name)}
+        className="size-full overflow-hidden rounded-full"
+        fallbackClassName={cn('bg-transparent font-bold text-white', textClass)}
+      />
+    );
+  }
+  return (
+    <AvatarFallback className={cn('font-bold text-white', textClass)} style={{ backgroundColor: person.color }}>
+      {initials(person.name)}
+    </AvatarFallback>
+  );
+}
+
+/** The agent colour lives on the root now — see `PresenceAvatarContent`. */
+function presenceAvatarStyle(person: WorkspacePresenceUser) {
+  return person.kind === 'agent' ? { backgroundColor: person.color } : undefined;
 }
 
 /** The one-line answer to "what are they doing", per participant kind. */
@@ -222,14 +262,9 @@ export function PresenceRoster({
                     size="sm"
                     title={`${person.name}${person.isCurrentUser ? ' (you)' : ''}`}
                     className={cn(modeClass(getMode(person.id)))}
+                    style={presenceAvatarStyle(person)}
                   >
-                    <PresenceAvatarMedia person={person} />
-                    <AvatarFallback
-                      className="text-[10px] font-bold text-white"
-                      style={{ backgroundColor: person.color }}
-                    >
-                      {initials(person.name)}
-                    </AvatarFallback>
+                    <PresenceAvatarContent person={person} textClass="text-[10px]" />
                     <AvatarBadge className={statusDotClass(person)} />
                   </Avatar>
                 ))}
@@ -389,11 +424,8 @@ function PresenceRow({
         isFocused ? 'bg-accent/40' : 'hover:bg-muted/50',
       )}
     >
-      <Avatar className={cn('size-8', modeClass(mode))}>
-        <PresenceAvatarMedia person={person} />
-        <AvatarFallback className="text-[11px] font-bold text-white" style={{ backgroundColor: person.color }}>
-          {initials(person.name)}
-        </AvatarFallback>
+      <Avatar className={cn('size-8', modeClass(mode))} style={presenceAvatarStyle(person)}>
+        <PresenceAvatarContent person={person} textClass="text-[11px]" />
         <AvatarBadge className={statusDotClass(person)} title={statusLabel(person)} />
       </Avatar>
 
