@@ -63,6 +63,7 @@ const COMPACT_INDENT = 'pl-11 pr-2';
 // invisible. Full strength reads as a quiet chip in light and dark alike.
 const CHIP_BASE = 'inline-flex max-w-full items-center gap-1 rounded-full border py-0.5 font-mono text-[11px] font-semibold leading-4';
 const CHIP_IDLE = 'border-border bg-muted text-muted-foreground';
+const CHIP_LABEL = 'font-medium text-foreground/70';
 // Hover lights up the EDGE (--ring is mid-grey in every theme), so it reads the same
 // way whether the surface is dark or light — a background shift would have to invert.
 const CHIP_INTERACTIVE = 'transition-colors hover:border-ring hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
@@ -240,11 +241,10 @@ function ThinkingChip({ placeholder }: { placeholder: ChatMessage }) {
       )}
     >
       <Brain className="size-3 shrink-0 text-[color:var(--accent)]" />
-      {/* The shimmer is the only motion — it reads as alive without a second
-          spinner competing with the chip's own ticking number. Weight comes
-          from CHIP_BASE now, so this matches the tool-call chip exactly
-          instead of reading one notch bolder. */}
-      <span className="text-shimmer truncate">{activityChipLabel(content)}</span>
+      {/* Keep the live chip's accent treatment and brain, but render its label
+          exactly like a normal tool-call name. The elapsed text already ticks,
+          so the extra shimmer only made this one chip read larger and louder. */}
+      <span className={cn('truncate', CHIP_LABEL)}>{activityChipLabel(content)}</span>
     </span>
   );
 }
@@ -287,7 +287,7 @@ function ToolStepChip({ step, approval }: { step: ChatMessage; approval?: Permis
       )}
     >
       <Icon className="size-3 shrink-0 opacity-70" />
-      {name && <span className="shrink-0 font-medium text-foreground/70">{name}</span>}
+      {name && <span className={cn('shrink-0', CHIP_LABEL)}>{name}</span>}
       {detail && <span className="truncate opacity-80">{shortenPathsIn(detail)}</span>}
       {/* The call the human unblocked carries its shield here, right where the
           folded permission card used to be a whole row of its own. One word for

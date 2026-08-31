@@ -126,3 +126,33 @@ describe('a settled approval that gated no call is a quiet line', () => {
     expect(container.querySelectorAll('button')).toHaveLength(0);
   });
 });
+
+describe('the live thinking chip matches normal tool-call typography', () => {
+  it('keeps its accent treatment and icon while using the shared tool label style', () => {
+    const rows = buildTranscriptRows([
+      message({
+        id: 'thinking',
+        content: 'Thinking 12s',
+        created_at: new Date().toISOString(),
+      }),
+      message({
+        id: 'step-after-thinking',
+        message_kind: 'tool_step',
+        tool_name: 'Read',
+        tool_detail: 'src/App.tsx',
+      }),
+    ]);
+    act(() => root.render(createElement(ToolStepGroup, { row: rows[0] as TranscriptStepRow })));
+
+    const label = [...container.querySelectorAll('span.truncate')]
+      .find(element => element.textContent === 'Thinking 12s')!;
+    const chip = label.parentElement!;
+
+    expect(label.classList).toContain('font-medium');
+    expect(label.classList).toContain('text-foreground/70');
+    expect(label.classList).not.toContain('text-shimmer');
+    expect(chip.classList).toContain('text-[11px]');
+    expect(chip.classList).toContain('bg-[color:var(--accent-subtle)]');
+    expect(chip.querySelector('svg')).not.toBeNull();
+  });
+});
