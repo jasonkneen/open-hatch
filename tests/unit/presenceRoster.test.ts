@@ -199,6 +199,36 @@ describe('presence roster: the row', () => {
     expect(compactImage?.src).toBe(rowImage?.src);
   });
 
+  // The squeeze: `Avatar.Root` is a flex row, and an agent used to put TWO
+  // `size-full` children in it — the `AgentAvatar` media and Radix's
+  // `AvatarFallback`, which renders whenever no `Avatar.Image` has loaded (and
+  // `AgentAvatar` is not an `Avatar.Image`, so none ever does). Two children at
+  // 100% with the default `flex-shrink: 1` each collapsed to half the box, so
+  // every agent came out ~12px wide by 24px tall with its initials spilling
+  // over the neighbour. jsdom has no layout engine, so the assertion is on the
+  // structure that caused it: one drawn layer per avatar, never two.
+  it('draws exactly one layer inside an agent avatar', () => {
+    const panel = renderRoster([AGENT]);
+    const compact = document.querySelector('.presence-avatar-group [data-slot="avatar"]');
+    const row = panel!.querySelector('[data-slot="avatar"]');
+    for (const avatar of [compact, row]) {
+      expect(avatar).not.toBeNull();
+      const drawn = Array.from(avatar!.children)
+        .filter(child => child.getAttribute('data-slot') !== 'avatar-badge');
+      expect(drawn).toHaveLength(1);
+      // The fallback is the alternative to agent art, not a layer under it.
+      expect(avatar!.querySelector('[data-slot="avatar-fallback"]')).toBeNull();
+    }
+  });
+
+  it('still gives a human the coloured initials fallback', () => {
+    const panel = renderRoster([HUMAN]);
+    const row = panel!.querySelector('[data-slot="avatar"]');
+    const fallback = row!.querySelector('[data-slot="avatar-fallback"]');
+    expect(fallback).not.toBeNull();
+    expect(fallback!.textContent).toBe('DE');
+  });
+
   it('names a non-default visibility on the row, and stays quiet on the default', () => {
     expect(renderRoster([HUMAN])!.textContent).not.toContain('Dimmed');
     act(() => root.unmount());
