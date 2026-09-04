@@ -166850,10 +166850,8 @@ I’ll update the local MCP configuration for `ideation-canvas` and verify which
       /Users/jkneen/.claude.json-15617-  },
       /Users/jkneen/.claude.json-15618-  "providerProfiles": [
       /Users/jkneen/.claude.json-15619-    {
-      /Users/jkneen/.claude.json-15620-      "apiKey": "sk-a0CaZwM1t3I3nH5BFZVrFkSnEsMxw9tjeLbPiQye9D3eWfm3",
       /Users/jkneen/.claude.json-15621-      "baseUrl": "https://api.moonshot.ai/v1",
-      /Users/jkneen/.claude.json-15622-      "id": "provider_f16bbdd29af5",
-
+      
 ## Activity
 
     $ /bin/zsh -lc "printf '%s\\n' 'Codex MCP entry:'; awk 'NR>=88 && NR<=96 {print NR \":\" "'$0}'"' /Users/jkneen/.codex/config.toml; printf '%s\\n' 'Claude global MCP entry:'; jq -c '.mcpServers[\"ideation-canvas\"] // null' /Users/jkneen/.claude.json; printf '%s\\n' 'Claude agensis project MCP entry:'; jq -c '.projects[\"/Users/jkneen/Documents/GitHub/agensis\"].mcpServers[\"ideation-canvas\"] // null' /Users/jkneen/.claude.json; printf '%s\\n' 'Claude home project MCP entry:'; jq -c '.projects[\"/Users/jkneen\"].mcpServers[\"ideation-canvas\"] // null' /Users/jkneen/.claude.json"
